@@ -89,25 +89,48 @@ public class PermissionEventCapture {
         System.out.println(separator + "\n");
     }
 
+    public void logStartup(String logFilePath, String metricsPort, boolean restApiEnabled,
+                            boolean metricsEnabled, boolean csvEnabled, int maxEvents, String webhook) {
+        String separator = "══════════════════════════════════════════════════════════════════════";
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n").append(separator).append("\n");
+        sb.append("BESU PERMISSION PLUGIN CONFIGURATION\n");
+        sb.append(separator).append("\n");
+        sb.append("Log File: ").append(logFilePath).append("\n");
+        sb.append("Metrics Port: ").append(metricsPort).append("\n");
+        sb.append("REST API Enabled: ").append(restApiEnabled).append("\n");
+        sb.append("Metrics Enabled: ").append(metricsEnabled).append("\n");
+        sb.append("CSV Export Enabled: ").append(csvEnabled).append("\n");
+        sb.append("Max Events in Memory: ").append(maxEvents).append("\n");
+        sb.append("Notification Webhook: ").append(webhook).append("\n");
+        sb.append(separator).append("\n");
+        writeToFile(sb.toString());
+    }
+
     private void logToFile(PermissionEvent event) {
+        String separator = "═".repeat(100);
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n").append(separator).append("\n");
+        sb.append("┌─ [PERMISSION EVENT INTERCEPTED] ").append(formatter.format(event.getTimestamp())).append("\n");
+        sb.append("├─ TYPE: ").append(event.getEventType()).append("\n");
+        sb.append("├─ ENODE (Current Node): ").append(event.getEnode()).append("\n");
+        sb.append("├─ ITEMS ADDED: ").append(event.getAddresses().size()).append("\n");
+        for (int i = 0; i < event.getAddresses().size(); i++) {
+            String prefix = (i == event.getAddresses().size() - 1) ? "└─" : "├─";
+            sb.append(prefix).append("  [").append(i + 1).append("] ")
+              .append(event.getAddresses().get(i)).append("\n");
+        }
+        sb.append("└─ TIMESTAMP: ").append(formatter.format(event.getTimestamp())).append("\n");
+        sb.append(separator).append("\n");
+        writeToFile(sb.toString());
+    }
+
+    private void writeToFile(String content) {
         try {
-            // Crear el directorio si no existe
             Path logPath = Paths.get(logFile);
             Files.createDirectories(logPath.getParent());
-
-            StringBuilder logLine = new StringBuilder();
-            logLine.append("[").append(event.getTimestamp()).append("] ");
-            logLine.append("TYPE=").append(event.getEventType()).append(" | ");
-            logLine.append("ENODE=").append(event.getEnode()).append(" | ");
-            logLine.append("ITEMS=").append(String.join(",", event.getAddresses()));
-            logLine.append("\n");
-
-            Files.write(
-                    logPath,
-                    logLine.toString().getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.APPEND
-            );
+            Files.write(logPath, content.getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (Exception e) {
             System.err.println("[ERROR] Escribiendo log: " + e.getMessage());
         }

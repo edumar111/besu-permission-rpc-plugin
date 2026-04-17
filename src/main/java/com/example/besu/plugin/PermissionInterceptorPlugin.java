@@ -80,6 +80,16 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                 return response != null ? response.getResult() : null;
             });
 
+            eventCapture.logStartup(
+                    config.getLogFile(),
+                    String.valueOf(config.getMetricsPort()),
+                    config.isEnableRestApi(),
+                    config.isEnableMetrics(),
+                    config.isEnableCsvExport(),
+                    config.getMaxEventsInMemory(),
+                    config.getNotificationWebhook() != null ? config.getNotificationWebhook() : "disabled"
+            );
+
             System.out.println("[✓] PermissionInterceptor Plugin iniciado correctamente");
             System.out.println("[✓] Interceptando: perm_addAccountsToAllowlist");
             System.out.println("[✓] Interceptando: perm_addNodesToAllowlist");
