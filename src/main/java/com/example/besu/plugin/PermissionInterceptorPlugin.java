@@ -65,6 +65,18 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
         );
 
         if (hasRpc) {
+            // Resolve real enode via net_enode RPC
+            try {
+                RpcEndpointService rpc = besuContext.getService(RpcEndpointService.class).get();
+                Object result = rpc.call("net_enode", new Object[]{}).getResult();
+                if (result != null) {
+                    nodeInfoProvider.setEnode(result.toString());
+                    System.out.println("[✓] Enode: " + result);
+                }
+            } catch (Exception e) {
+                System.err.println("[WARN] No se pudo obtener enode: " + e.getMessage());
+            }
+
             startPermissionsFileWatcher();
             System.out.println("[✓] PermissionInterceptor Plugin iniciado - monitoreando " + dataPath);
         } else {

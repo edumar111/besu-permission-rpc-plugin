@@ -17,37 +17,14 @@ public class NodeInfoProvider {
      * Obtiene el enode del nodo actual
      * Formato: enode://publickey@ip:port
      */
+    private volatile String cachedEnode = null;
+
     public String getNodeEnode() {
-        try {
-            // Intentar obtener información de nodos de Besu
-            // El enode está disponible a través del servicio P2P
-            return getEnodeFromContext();
-        } catch (Exception e) {
-            System.err.println("[ERROR] Obteniendo enode: " + e.getMessage());
-            return "enode://unknown@localhost:30303";
-        }
+        return cachedEnode != null ? cachedEnode : "enode://unknown@localhost:30303";
     }
 
-    /**
-     * Extrae el enode del contexto de Besu
-     */
-    private String getEnodeFromContext() {
-        try {
-            // En una implementación real, esto vendría del servicio P2P de Besu
-            // Por ahora, retornamos un enode placeholder que será
-            // reemplazado con el valor real del nodo
-            String property = System.getProperty("besu.p2p.peer.id");
-            String host = System.getProperty("besu.rpc.http.host", "127.0.0.1");
-            String port = System.getProperty("besu.p2p.port", "30303");
-
-            if (property != null) {
-                return "enode://" + property + "@" + host + ":" + port;
-            }
-
-            return "enode://unknown@" + host + ":" + port;
-        } catch (Exception e) {
-            return "enode://unknown@localhost:30303";
-        }
+    public void setEnode(String enode) {
+        this.cachedEnode = enode;
     }
 
     /**
