@@ -37,16 +37,21 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
         this.eventCapture = new PermissionEventCapture(config.getLogFile());
         this.nodeInfoProvider = new NodeInfoProvider(context);
 
-        // Resolve data path from Besu configuration
-        this.dataPath = context.getService(BesuConfiguration.class)
-                .map(BesuConfiguration::getDataPath)
-                .orElse(Paths.get(System.getProperty("besu.data.path", ".")));
-
-        System.out.println("[BESU PERMISSION RPC PLUGIN] Registrando plugin... data-path=" + dataPath);
+        System.out.println("[BESU PERMISSION RPC PLUGIN] Registrando plugin...");
     }
 
     @Override
     public void start() {
+        // Resolve data path: plugin.properties > BesuConfiguration > default
+        if (config.getDataPath() != null) {
+            this.dataPath = Paths.get(config.getDataPath());
+        } else {
+            this.dataPath = besuContext.getService(BesuConfiguration.class)
+                    .map(BesuConfiguration::getDataPath)
+                    .orElse(Paths.get("."));
+        }
+        System.out.println("[BESU PERMISSION PLUGIN] data-path resuelto: " + dataPath.toAbsolutePath());
+
         boolean hasRpc = besuContext.getService(RpcEndpointService.class).isPresent();
 
         eventCapture.logStartup(

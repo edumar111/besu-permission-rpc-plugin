@@ -49,6 +49,7 @@ public class PluginConfig {
     private boolean enableCsvExport;
     private int maxEventsInMemory;
     private String notificationWebhook;
+    private String dataPath;
 
     public PluginConfig() {
         this.logFile = DEFAULT_LOG_FILE;
@@ -58,6 +59,7 @@ public class PluginConfig {
         this.enableCsvExport = true;
         this.maxEventsInMemory = 10000;
         this.notificationWebhook = null;
+        this.dataPath = null;
     }
 
     /**
@@ -83,6 +85,7 @@ public class PluginConfig {
             config.maxEventsInMemory = Integer.parseInt(
                     props.getProperty("memory.max.events", "10000"));
             config.notificationWebhook = props.getProperty("notification.webhook", null);
+            config.dataPath = props.getProperty("data.path", null);
 
             System.out.println("[CONFIG] Configuración cargada desde: " + filePath);
         } else {
@@ -110,6 +113,7 @@ public class PluginConfig {
         config.maxEventsInMemory = Integer.parseInt(
                 System.getProperty("besu.permission.memory.max.events", "10000"));
         config.notificationWebhook = System.getProperty("besu.permission.notification.webhook");
+        config.dataPath = System.getProperty("besu.permission.data.path", null);
 
         return config;
     }
@@ -170,6 +174,14 @@ public class PluginConfig {
 
     public void setNotificationWebhook(String notificationWebhook) {
         this.notificationWebhook = notificationWebhook;
+    }
+
+    public String getDataPath() {
+        return dataPath;
+    }
+
+    public void setDataPath(String dataPath) {
+        this.dataPath = dataPath;
     }
 
     /**
