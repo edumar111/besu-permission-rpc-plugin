@@ -6,6 +6,14 @@ import org.hyperledger.besu.plugin.services.BesuConfiguration;
 import org.hyperledger.besu.plugin.services.RpcEndpointService;
 import com.example.besu.plugin.config.PluginConfig;
 
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
@@ -65,17 +73,10 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
         );
 
         if (hasRpc) {
-            // Resolve real enode via net_enode RPC
-            try {
-                RpcEndpointService rpc = besuContext.getService(RpcEndpointService.class).get();
-                Object result = rpc.call("net_enode", new Object[]{}).getResult();
-                if (result != null) {
-                    nodeInfoProvider.setEnode(result.toString());
-                    System.out.println("[✓] Enode: " + result);
-                }
-            } catch (Exception e) {
-                System.err.println("[WARN] No se pudo obtener enode: " + e.getMessage());
-            }
+            BesuConfiguration besuConfig = besuContext.getService(BesuConfiguration.class).orElse(null);
+            String rpcHost = besuConfig != null ? besuConfig.getConfiguredRpcHttpHost() : "127.0.0.1";
+            int rpcPort   = besuConfig != null ? besuConfig.getConfiguredRpcHttpPort() : 8545;
+            startEnodeResolver(rpcHost, rpcPort);
 
             startPermissionsFileWatcher();
             System.out.println("[✓] PermissionInterceptor Plugin iniciado - monitoreando " + dataPath);
@@ -84,6 +85,39 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
         }
 
         config.printConfig();
+    }
+
+    private void startEnodeResolver(String host, int port) {
+        Thread t = new Thread(() -> {
+            String url = "http://" + host + ":" + port + "/";
+            String body = "{\"jsonrpc\":\"2.0\",\"method\":\"net_enode\",\"params\":[],\"id\":1}";
+            ObjectMapper mapper = new ObjectMapper();
+            for (int attempt = 1; attempt <= 15; attempt++) {
+                try {
+                    Thread.sleep(3000);
+                    try (CloseableHttpClient client = HttpClients.createDefault()) {
+                        HttpPost post = new HttpPost(url);
+                        post.setEntity(new StringEntity(body));
+                        post.setHeader("Content-Type", "application/json");
+                        String response = client.execute(post, r -> EntityUtils.toString(r.getEntity()));
+                        JsonNode root = mapper.readTree(response);
+                        JsonNode result = root.path("result");
+                        if (!result.isMissingNode() && !result.isNull()) {
+                            nodeInfoProvider.setEnode(result.asText());
+                            System.out.println("[✓] Enode resuelto: " + result.asText());
+                            return;
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception e) {
+                    System.err.println("[WARN] Intento " + attempt + " obteniendo enode: " + e.getMessage());
+                }
+            }
+        }, "enode-resolver");
+        t.setDaemon(true);
+        t.start();
     }
 
     private void startPermissionsFileWatcher() {
