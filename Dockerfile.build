@@ -1,0 +1,10 @@
+FROM gradle:8.5-jdk17 as builder
+
+WORKDIR /app
+COPY . /app/
+
+RUN gradle clean build -x test
+
+FROM alpine:latest
+COPY --from=builder /app/build/libs/*.jar /output/
+RUN ls -lh /output/

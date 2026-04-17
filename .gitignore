@@ -1,0 +1,38 @@
+# Gradle
+.gradle/
+build/
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+out/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Maven
+target/
+.maven/
+
+# Node
+node_modules/
+npm-debug.log
+
+# Misc
+.classpath
+.project
+.settings/
+*.log
+*.tmp

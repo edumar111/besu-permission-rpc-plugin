@@ -1,0 +1,117 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║                  Besu Permission RPC Plugin Configuration              ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LOGGING CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Ruta del archivo de log
+log.file=/var/log/besu/permission-events.log
+
+# ═══════════════════════════════════════════════════════════════════════════
+# REST API CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Habilitar REST API para consultar eventos
+api.rest.enabled=true
+
+# Puerto para la API REST (opcional)
+api.rest.port=9091
+
+# ═══════════════════════════════════════════════════════════════════════════
+# METRICS CONFIGURATION (Prometheus)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Habilitar métricas Prometheus
+metrics.enabled=true
+
+# Puerto para exponer métricas Prometheus
+# Accesible en: http://localhost:9090/metrics
+metrics.port=9090
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPORT CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Habilitar exportación a CSV
+export.csv.enabled=true
+
+# Ruta para exportar CSV (opcional)
+export.csv.path=/var/log/besu/permission-events.csv
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MEMORY CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Máximo número de eventos a mantener en memoria
+# Los eventos más antiguos se descartan cuando se alcanza este límite
+memory.max.events=10000
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NOTIFICATION CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Webhook para notificaciones de eventos
+# Soporta: HTTP, Slack, Discord, etc.
+# Ejemplos:
+#   notification.webhook=http://localhost:8000/webhook
+#   notification.webhook=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+#   notification.webhook=https://discordapp.com/api/webhooks/YOUR/WEBHOOK
+
+notification.webhook=http://localhost:8000/webhook
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FILTERING CONFIGURATION (Future)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Filtrar eventos por tipo (comma-separated)
+# Ej: filter.event.types=ADD_ACCOUNTS,ADD_NODES
+# Si está vacío, se capturan todos los tipos
+filter.event.types=
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ADVANCED CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Nivel de detalle en logs (DEBUG, INFO, WARN, ERROR)
+log.level=INFO
+
+# Habilitar modo verbose
+verbose.enabled=false
+
+# Intervalo de persistencia en segundos (guardar datos en disco)
+persistence.interval=300
+
+# Almacenar eventos en base de datos (experimental)
+# database.enabled=false
+# database.type=sqlite
+# database.path=/var/lib/besu/permission-events.db
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BESU INTEGRATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Permiso de archivo (no cambiar)
+# Este archivo debe tener permisos 644
+# chmod 644 plugin.properties
+
+# Para usar estas configuraciones, inicia Besu con:
+# besu --data-path=/data \
+#      --rpc-http-enabled \
+#      --rpc-http-api=ETH,NET,WEB3,PERM \
+#      --plugin-dir=/opt/besu/plugins \
+#      -Dbesu.permission.config=/etc/besu/plugin.properties
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXAMPLE USAGE
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Opción 1: Pasar como propiedades del sistema
+# ./gradlew run -Dbesu.permission.log.file=/custom/path.log
+
+# Opción 2: Usar archivo de configuración
+# java -Dbesu.permission.config=/etc/besu/plugin.properties ...
+
+# Opción 3: Variables de entorno
+# export BESU_PERMISSION_LOG_FILE=/var/log/besu/events.log

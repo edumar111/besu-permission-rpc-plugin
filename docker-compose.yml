@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Besu 25.8.0 con el plugin
+  besu:
+    image: hyperledger/besu:25.8.0
+    container_name: besu-permission-25.8
+    ports:
+      - "8545:8545"    # RPC HTTP
+      - "30303:30303"  # P2P
+      - "9090:9090"    # Prometheus metrics (plugin)
+      - "9091:9091"    # REST API (plugin)
+    volumes:
+      - besu-data:/data
+      - besu-logs:/var/log/besu
+      - ./build/libs/besu-permission-rpc-plugin-2.0.0-fat.jar:/opt/besu/plugins/besu-permission-rpc-plugin-2.0.0-fat.jar
+    environment:
+      - BESU_DATA_PATH=/data
+      - BESU_RPC_HTTP_ENABLED=true
+      - BESU_RPC_HTTP_PORT=8545
+      - BESU_RPC_HTTP_API=ETH,NET,WEB3,PERM
+      - BESU_P2P_PORT=30303
+      - BESU_PLUGIN_DIR=/opt/besu/plugins
+      - BESU_PERMISSION_METRICS_ENABLED=true
+      - BESU_PERMISSION_METRICS_PORT=9090
+      - BESU_PERMISSION_LOG_FILE=/var/log/besu/permission-events.log
+    command: >
+      besu
+      --data-path=/data
+      --p2p-port=30303
+      --rpc-http-enabled
+      --rpc-http-port=8545
+      --rpc-http-host=0.0.0.0
+      --rpc-http-api=ETH,NET,WEB3,PERM
+      --plugin-dir=/opt/besu/plugins
+      --logging=INFO
+    networks:
+      - besu-network
+    depends_on:
+      - prometheus
+
+  # Prometheus para recolectar métricas
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-besu
+    ports:
+      - "9000:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - besu-network
+
+  # Grafana para visualización
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-besu
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - besu-network
+    depends_on:
+      - prometheus
+
+  # Webhook de ejemplo (opcional)
+  webhook-receiver:
+    image: python:3.11-slim
+    container_name: webhook-receiver-besu
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./webhook_server.py:/app/webhook_server.py
+    working_dir: /app
+    command: python webhook_server.py
+    networks:
+      - besu-network
+
+volumes:
+  besu-data:
+  besu-logs:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  besu-network:
+    driver: bridge

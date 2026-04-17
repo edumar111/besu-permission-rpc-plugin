@@ -1,0 +1,67 @@
+# Configuración de Hyperledger Besu con Plugin de Permisos
+# Este archivo de configuración incluye todo lo necesario para usar
+# el plugin besu-permission-rpc-plugin
+
+[Node]
+# Ruta de datos
+data-path = "/data"
+
+# Redes y puertos
+p2p-port = 30303
+p2p-host = "0.0.0.0"
+
+# Directorio de plugins
+plugin-dir = "/opt/besu/plugins"
+
+[RPC]
+# HTTP RPC
+http-enabled = true
+http-host = "0.0.0.0"
+http-port = 8545
+http-api = ["ETH", "NET", "WEB3", "PERM"]
+
+# Para CORS (opcional, solo para desarrollo)
+# http-cors-origins = "*"
+
+# WebSocket RPC (opcional)
+# ws-enabled = true
+# ws-port = 8546
+# ws-api = ["ETH", "NET", "WEB3", "PERM"]
+
+[Logging]
+# Nivel de logging
+level = "INFO"
+
+[Mining]
+# Para redes privadas (opcional)
+# miner-enabled = false
+
+# Para Proof of Authority (optional, solo si es necesario)
+# miner-coinbase = "0x0000000000000000000000000000000000000000"
+
+[Permissions]
+# Habilitar validación de permisos
+# Nota: Requiere consenso específico (clique o IBFT)
+# nodes-allowlist-enabled = true
+# accounts-allowlist-enabled = true
+
+[NetworkServices]
+# Host y puerto por defecto
+host = "127.0.0.1"
+
+[Sync]
+# Modo de sincronización
+# snap - Rápido (default)
+# full - Completo
+# light - Ligero
+# fast - Rápido (deprecated)
+mode = "SNAP"
+
+[Pruning]
+# Pruning de datos históricos (opcional)
+# enabled = true
+# blocks-retained = 256
+
+[Security]
+# SSL/TLS (opcional)
+# Note: El plugin no requiere SSL para funcionar
