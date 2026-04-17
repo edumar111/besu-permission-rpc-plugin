@@ -2,124 +2,155 @@ package com.example.besu.plugin;
 
 import org.hyperledger.besu.plugin.BesuPlugin;
 import org.hyperledger.besu.plugin.ServiceManager;
+import org.hyperledger.besu.plugin.services.BesuConfiguration;
 import org.hyperledger.besu.plugin.services.RpcEndpointService;
-import org.hyperledger.besu.plugin.services.rpc.PluginRpcResponse;
 import com.example.besu.plugin.config.PluginConfig;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
 import java.io.IOException;
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
-/**
- * Plugin de Besu para interceptar llamadas RPC a perm_addAccountsToAllowlist
- * Captura automáticamente el enode del nodo y las direcciones permisionadas
- */
 public class PermissionInterceptorPlugin implements BesuPlugin {
 
     private ServiceManager besuContext;
     private PermissionEventCapture eventCapture;
     private NodeInfoProvider nodeInfoProvider;
     private PluginConfig config;
+    private Path dataPath;
+    private volatile Thread watcherThread;
 
     @Override
     public void register(final ServiceManager context) {
         this.besuContext = context;
-        
-        // Cargar configuración
+
         try {
             String configPath = System.getProperty("besu.permission.config");
-            if (configPath != null) {
-                this.config = PluginConfig.loadFromFile(configPath);
-            } else {
-                this.config = PluginConfig.loadFromSystemProperties();
-            }
+            this.config = configPath != null
+                    ? PluginConfig.loadFromFile(configPath)
+                    : PluginConfig.loadFromSystemProperties();
         } catch (IOException e) {
             System.err.println("[ERROR] Cargando configuración: " + e.getMessage());
             this.config = new PluginConfig();
         }
-        
-        // Crear event capture con la ruta configurada
+
         this.eventCapture = new PermissionEventCapture(config.getLogFile());
         this.nodeInfoProvider = new NodeInfoProvider(context);
 
-        System.out.println("\n" + "=".repeat(90));
-        System.out.println("[BESU PERMISSION RPC PLUGIN] Registrando plugin...");
-        System.out.println("=".repeat(90));
+        // Resolve data path from Besu configuration
+        this.dataPath = context.getService(BesuConfiguration.class)
+                .map(BesuConfiguration::getDataPath)
+                .orElse(Paths.get(System.getProperty("besu.data.path", ".")));
+
+        System.out.println("[BESU PERMISSION RPC PLUGIN] Registrando plugin... data-path=" + dataPath);
     }
 
     @Override
     public void start() {
-        Optional<RpcEndpointService> rpcServiceOpt = besuContext.getService(RpcEndpointService.class);
+        boolean hasRpc = besuContext.getService(RpcEndpointService.class).isPresent();
 
-        if (rpcServiceOpt.isPresent()) {
-            RpcEndpointService rpcService = rpcServiceOpt.get();
+        eventCapture.logStartup(
+                config.getLogFile(),
+                String.valueOf(config.getMetricsPort()),
+                config.isEnableRestApi(),
+                config.isEnableMetrics(),
+                config.isEnableCsvExport(),
+                config.getMaxEventsInMemory(),
+                config.getNotificationWebhook() != null ? config.getNotificationWebhook() : "disabled"
+        );
 
-            rpcService.registerRPCEndpoint("perm", "addAccountsToAllowlist", request -> {
-                PluginRpcResponse response = rpcService.call("perm_addAccountsToAllowlist", request.getParams());
-                try {
-                    String enode = nodeInfoProvider.getNodeEnode();
-                    List<String> addresses = extractItems(request.getParams());
-                    eventCapture.captureAccountPermissionEvent(enode, addresses);
-                } catch (Exception e) {
-                    System.err.println("[ERROR] Capturando evento addAccountsToAllowlist: " + e.getMessage());
-                }
-                return response != null ? response.getResult() : null;
-            });
-
-            rpcService.registerRPCEndpoint("perm", "addNodesToAllowlist", request -> {
-                PluginRpcResponse response = rpcService.call("perm_addNodesToAllowlist", request.getParams());
-                try {
-                    String enode = nodeInfoProvider.getNodeEnode();
-                    List<String> nodes = extractItems(request.getParams());
-                    eventCapture.captureNodePermissionEvent(enode, nodes);
-                } catch (Exception e) {
-                    System.err.println("[ERROR] Capturando evento addNodesToAllowlist: " + e.getMessage());
-                }
-                return response != null ? response.getResult() : null;
-            });
-
-            eventCapture.logStartup(
-                    config.getLogFile(),
-                    String.valueOf(config.getMetricsPort()),
-                    config.isEnableRestApi(),
-                    config.isEnableMetrics(),
-                    config.isEnableCsvExport(),
-                    config.getMaxEventsInMemory(),
-                    config.getNotificationWebhook() != null ? config.getNotificationWebhook() : "disabled"
-            );
-
-            System.out.println("[✓] PermissionInterceptor Plugin iniciado correctamente");
-            System.out.println("[✓] Interceptando: perm_addAccountsToAllowlist");
-            System.out.println("[✓] Interceptando: perm_addNodesToAllowlist");
-            System.out.println("[✓] Registros en: " + config.getLogFile());
-            config.printConfig();
+        if (hasRpc) {
+            startPermissionsFileWatcher();
+            System.out.println("[✓] PermissionInterceptor Plugin iniciado - monitoreando " + dataPath);
         } else {
-            System.err.println("[✗] No se pudo obtener el servicio RPC");
+            System.err.println("[✗] RpcEndpointService no disponible — RPC no habilitado en este nodo");
+        }
+
+        config.printConfig();
+    }
+
+    private void startPermissionsFileWatcher() {
+        Path permFile = dataPath.resolve("permissions_config.toml");
+
+        watcherThread = new Thread(() -> {
+            try {
+                // Read initial state
+                Set<String> knownAccounts = readAllowlist(permFile, "accounts-allowlist");
+                Set<String> knownNodes   = readAllowlist(permFile, "nodes-allowlist");
+
+                WatchService watcher = dataPath.getFileSystem().newWatchService();
+                dataPath.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY);
+
+                System.out.println("[✓] Watcheando permisos en: " + permFile);
+
+                while (!Thread.currentThread().isInterrupted()) {
+                    WatchKey key = watcher.take();
+                    for (WatchEvent<?> event : key.pollEvents()) {
+                        if (event.kind() == StandardWatchEventKinds.OVERFLOW) continue;
+                        Path changed = (Path) event.context();
+                        if (!changed.getFileName().toString().equals("permissions_config.toml")) continue;
+
+                        Thread.sleep(150); // wait for Besu to finish writing
+
+                        Set<String> newAccounts = readAllowlist(permFile, "accounts-allowlist");
+                        Set<String> addedAccounts = diff(knownAccounts, newAccounts);
+                        if (!addedAccounts.isEmpty()) {
+                            eventCapture.captureAccountPermissionEvent(
+                                    nodeInfoProvider.getNodeEnode(), new ArrayList<>(addedAccounts));
+                        }
+                        knownAccounts = newAccounts;
+
+                        Set<String> newNodes = readAllowlist(permFile, "nodes-allowlist");
+                        Set<String> addedNodes = diff(knownNodes, newNodes);
+                        if (!addedNodes.isEmpty()) {
+                            eventCapture.captureNodePermissionEvent(
+                                    nodeInfoProvider.getNodeEnode(), new ArrayList<>(addedNodes));
+                        }
+                        knownNodes = newNodes;
+                    }
+                    key.reset();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                System.err.println("[ERROR] Watcher de permisos: " + e.getMessage());
+            }
+        }, "permission-file-watcher");
+
+        watcherThread.setDaemon(true);
+        watcherThread.start();
+    }
+
+    private Set<String> readAllowlist(Path file, String key) {
+        try {
+            if (!Files.exists(file)) return new HashSet<>();
+            String content = Files.readString(file);
+            int idx = content.indexOf(key + "=[");
+            if (idx == -1) return new HashSet<>();
+            int start = content.indexOf('[', idx);
+            int end   = content.indexOf(']', start);
+            if (start == -1 || end == -1) return new HashSet<>();
+            return Arrays.stream(content.substring(start + 1, end).split(","))
+                    .map(s -> s.trim().replace("\"", "").toLowerCase())
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+        } catch (Exception e) {
+            return new HashSet<>();
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private List<String> extractItems(Object[] params) {
-        if (params == null || params.length == 0) return List.of();
-        Object first = params[0];
-        if (first instanceof String[]) return Arrays.asList((String[]) first);
-        if (first instanceof List<?>) return (List<String>) first;
-        if (first instanceof Collection<?>) return List.copyOf((Collection<String>) first);
-        return List.of();
+    private Set<String> diff(Set<String> before, Set<String> after) {
+        Set<String> added = new HashSet<>(after);
+        added.removeAll(before);
+        return added;
     }
 
     @Override
     public void stop() {
+        if (watcherThread != null) watcherThread.interrupt();
         System.out.println("[✓] PermissionInterceptor Plugin detenido");
     }
 
-    public PermissionEventCapture getEventCapture() {
-        return eventCapture;
-    }
-
-    public NodeInfoProvider getNodeInfoProvider() {
-        return nodeInfoProvider;
-    }
+    public PermissionEventCapture getEventCapture() { return eventCapture; }
+    public NodeInfoProvider getNodeInfoProvider()    { return nodeInfoProvider; }
 }
