@@ -69,14 +69,15 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                 config.isEnableMetrics(),
                 config.isEnableCsvExport(),
                 config.getMaxEventsInMemory(),
-                config.getNotificationWebhook() != null ? config.getNotificationWebhook() : "disabled"
+                config.getNotificationWebhook() != null ? config.getNotificationWebhook() : "disabled",
+                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
         );
 
         if (hasRpc) {
             BesuConfiguration besuConfig = besuContext.getService(BesuConfiguration.class).orElse(null);
-            String rpcHost = besuConfig != null ? besuConfig.getConfiguredRpcHttpHost() : "127.0.0.1";
-            int rpcPort   = besuConfig != null ? besuConfig.getConfiguredRpcHttpPort() : 8545;
-            startEnodeResolver(rpcHost, rpcPort);
+            // Always use 127.0.0.1 — getConfiguredRpcHttpHost() returns 0.0.0.0 (bind addr)
+            int rpcPort = besuConfig != null ? besuConfig.getConfiguredRpcHttpPort() : 8545;
+            startEnodeResolver("127.0.0.1", rpcPort);
 
             startPermissionsFileWatcher();
             System.out.println("[✓] PermissionInterceptor Plugin iniciado - monitoreando " + dataPath);
@@ -103,8 +104,10 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                         JsonNode root = mapper.readTree(response);
                         JsonNode result = root.path("result");
                         if (!result.isMissingNode() && !result.isNull()) {
-                            nodeInfoProvider.setEnode(result.asText());
-                            System.out.println("[✓] Enode resuelto: " + result.asText());
+                            String enode = result.asText();
+                            nodeInfoProvider.setEnode(enode);
+                            eventCapture.logLine("Local Node Enode: " + enode);
+                            System.out.println("[✓] Enode resuelto: " + enode);
                             return;
                         }
                     }

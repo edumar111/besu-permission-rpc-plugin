@@ -90,19 +90,21 @@ public class PermissionEventCapture {
     }
 
     public void logStartup(String logFilePath, String metricsPort, boolean restApiEnabled,
-                            boolean metricsEnabled, boolean csvEnabled, int maxEvents, String webhook) {
+                            boolean metricsEnabled, boolean csvEnabled, int maxEvents,
+                            String webhook, String startTime) {
         String separator = "══════════════════════════════════════════════════════════════════════";
         StringBuilder sb = new StringBuilder();
         sb.append("\n").append(separator).append("\n");
-        sb.append("BESU PERMISSION PLUGIN CONFIGURATION\n");
+        sb.append("BESU PERMISSION PLUGIN CONFIGURATION  [").append(startTime).append("]\n");
         sb.append(separator).append("\n");
-        sb.append("Log File: ").append(logFilePath).append("\n");
-        sb.append("Metrics Port: ").append(metricsPort).append("\n");
-        sb.append("REST API Enabled: ").append(restApiEnabled).append("\n");
-        sb.append("Metrics Enabled: ").append(metricsEnabled).append("\n");
-        sb.append("CSV Export Enabled: ").append(csvEnabled).append("\n");
-        sb.append("Max Events in Memory: ").append(maxEvents).append("\n");
-        sb.append("Notification Webhook: ").append(webhook).append("\n");
+        sb.append("Log File:              ").append(logFilePath).append("\n");
+        sb.append("Metrics Port:          ").append(metricsPort).append("\n");
+        sb.append("REST API Enabled:      ").append(restApiEnabled).append("\n");
+        sb.append("Metrics Enabled:       ").append(metricsEnabled).append("\n");
+        sb.append("CSV Export Enabled:    ").append(csvEnabled).append("\n");
+        sb.append("Max Events in Memory:  ").append(maxEvents).append("\n");
+        sb.append("Notification Webhook:  ").append(webhook).append("\n");
+        sb.append("Local Node Enode:      resolving...\n");
         sb.append(separator).append("\n");
         writeToFile(sb.toString());
     }
@@ -123,6 +125,10 @@ public class PermissionEventCapture {
         sb.append("└─ TIMESTAMP: ").append(formatter.format(event.getTimestamp())).append("\n");
         sb.append(separator).append("\n");
         writeToFile(sb.toString());
+    }
+
+    public void logLine(String line) {
+        writeToFile(line + "\n");
     }
 
     private void writeToFile(String content) {
