@@ -3,8 +3,12 @@ package com.example.besu.plugin;
 import org.hyperledger.besu.plugin.BesuPlugin;
 import org.hyperledger.besu.plugin.ServiceManager;
 import org.hyperledger.besu.plugin.services.RpcEndpointService;
+import org.hyperledger.besu.plugin.services.rpc.PluginRpcResponse;
 import com.example.besu.plugin.config.PluginConfig;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.io.IOException;
 
@@ -47,22 +51,53 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
 
     @Override
     public void start() {
-        Optional<RpcEndpointService> rpcService = besuContext.getService(RpcEndpointService.class);
+        Optional<RpcEndpointService> rpcServiceOpt = besuContext.getService(RpcEndpointService.class);
 
-        if (rpcService.isPresent()) {
-            System.out.println("\n" + "✓".repeat(45));
+        if (rpcServiceOpt.isPresent()) {
+            RpcEndpointService rpcService = rpcServiceOpt.get();
+
+            rpcService.registerRPCEndpoint("perm", "addAccountsToAllowlist", request -> {
+                PluginRpcResponse response = rpcService.call("perm_addAccountsToAllowlist", request.getParams());
+                try {
+                    String enode = nodeInfoProvider.getNodeEnode();
+                    List<String> addresses = extractItems(request.getParams());
+                    eventCapture.captureAccountPermissionEvent(enode, addresses);
+                } catch (Exception e) {
+                    System.err.println("[ERROR] Capturando evento addAccountsToAllowlist: " + e.getMessage());
+                }
+                return response != null ? response.getResult() : null;
+            });
+
+            rpcService.registerRPCEndpoint("perm", "addNodesToAllowlist", request -> {
+                PluginRpcResponse response = rpcService.call("perm_addNodesToAllowlist", request.getParams());
+                try {
+                    String enode = nodeInfoProvider.getNodeEnode();
+                    List<String> nodes = extractItems(request.getParams());
+                    eventCapture.captureNodePermissionEvent(enode, nodes);
+                } catch (Exception e) {
+                    System.err.println("[ERROR] Capturando evento addNodesToAllowlist: " + e.getMessage());
+                }
+                return response != null ? response.getResult() : null;
+            });
+
             System.out.println("[✓] PermissionInterceptor Plugin iniciado correctamente");
-            System.out.println("[✓] Monitoreando: perm_addAccountsToAllowlist");
-            System.out.println("[✓] Monitoreando: perm_addNodesToAllowlist");
+            System.out.println("[✓] Interceptando: perm_addAccountsToAllowlist");
+            System.out.println("[✓] Interceptando: perm_addNodesToAllowlist");
             System.out.println("[✓] Registros en: " + config.getLogFile());
-            System.out.println("[✓] Versión: 2.0.0 (Besu 25.8.0 + Java 17)");
-            System.out.println("✓".repeat(45) + "\n");
-            
-            // Imprimir configuración
             config.printConfig();
         } else {
             System.err.println("[✗] No se pudo obtener el servicio RPC");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> extractItems(Object[] params) {
+        if (params == null || params.length == 0) return List.of();
+        Object first = params[0];
+        if (first instanceof String[]) return Arrays.asList((String[]) first);
+        if (first instanceof List<?>) return (List<String>) first;
+        if (first instanceof Collection<?>) return List.copyOf((Collection<String>) first);
+        return List.of();
     }
 
     @Override
