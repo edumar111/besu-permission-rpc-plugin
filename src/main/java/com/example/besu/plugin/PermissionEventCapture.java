@@ -39,30 +39,26 @@ public class PermissionEventCapture {
      * Captura un evento de permiso para addAccountsToAllowlist
      */
     public void captureAccountPermissionEvent(String enode, List<String> addresses) {
-        PermissionEvent event = new PermissionEvent(
-                PermissionEvent.EventType.ADD_ACCOUNTS,
-                enode,
-                addresses,
-                LocalDateTime.now()
-        );
-
-        capturedEvents.add(event);
-        logToFile(event);
-        notifyListeners(event);
-        printEventToConsole(event);
+        captureEvent(PermissionEvent.EventType.ADD_ACCOUNTS, enode, addresses);
     }
 
     /**
      * Captura un evento de permiso para addNodesToAllowlist
      */
     public void captureNodePermissionEvent(String enode, List<String> nodeEnodes) {
-        PermissionEvent event = new PermissionEvent(
-                PermissionEvent.EventType.ADD_NODES,
-                enode,
-                nodeEnodes,
-                LocalDateTime.now()
-        );
+        captureEvent(PermissionEvent.EventType.ADD_NODES, enode, nodeEnodes);
+    }
 
+    public void captureAccountRemoveEvent(String enode, List<String> addresses) {
+        captureEvent(PermissionEvent.EventType.REMOVE_ACCOUNTS, enode, addresses);
+    }
+
+    public void captureNodeRemoveEvent(String enode, List<String> nodeEnodes) {
+        captureEvent(PermissionEvent.EventType.REMOVE_NODES, enode, nodeEnodes);
+    }
+
+    private void captureEvent(PermissionEvent.EventType type, String enode, List<String> items) {
+        PermissionEvent event = new PermissionEvent(type, enode, items, LocalDateTime.now());
         capturedEvents.add(event);
         logToFile(event);
         notifyListeners(event);

@@ -157,20 +157,24 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
 
                         Thread.sleep(150); // wait for Besu to finish writing
 
+                        String enode = nodeInfoProvider.getNodeEnode();
+
                         Set<String> newAccounts = readAllowlist(permFile, "accounts-allowlist");
-                        Set<String> addedAccounts = diff(knownAccounts, newAccounts);
-                        if (!addedAccounts.isEmpty()) {
-                            eventCapture.captureAccountPermissionEvent(
-                                    nodeInfoProvider.getNodeEnode(), new ArrayList<>(addedAccounts));
-                        }
+                        Set<String> addedAccounts   = diff(knownAccounts, newAccounts);
+                        Set<String> removedAccounts = diff(newAccounts, knownAccounts);
+                        if (!addedAccounts.isEmpty())
+                            eventCapture.captureAccountPermissionEvent(enode, new ArrayList<>(addedAccounts));
+                        if (!removedAccounts.isEmpty())
+                            eventCapture.captureAccountRemoveEvent(enode, new ArrayList<>(removedAccounts));
                         knownAccounts = newAccounts;
 
                         Set<String> newNodes = readAllowlist(permFile, "nodes-allowlist");
-                        Set<String> addedNodes = diff(knownNodes, newNodes);
-                        if (!addedNodes.isEmpty()) {
-                            eventCapture.captureNodePermissionEvent(
-                                    nodeInfoProvider.getNodeEnode(), new ArrayList<>(addedNodes));
-                        }
+                        Set<String> addedNodes   = diff(knownNodes, newNodes);
+                        Set<String> removedNodes = diff(newNodes, knownNodes);
+                        if (!addedNodes.isEmpty())
+                            eventCapture.captureNodePermissionEvent(enode, new ArrayList<>(addedNodes));
+                        if (!removedNodes.isEmpty())
+                            eventCapture.captureNodeRemoveEvent(enode, new ArrayList<>(removedNodes));
                         knownNodes = newNodes;
                     }
                     key.reset();
