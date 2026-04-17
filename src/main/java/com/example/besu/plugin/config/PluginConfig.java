@@ -50,6 +50,8 @@ public class PluginConfig {
     private int maxEventsInMemory;
     private String notificationWebhook;
     private String dataPath;
+    private int rpcPort;
+    private String rpcHost;
 
     public PluginConfig() {
         this.logFile = DEFAULT_LOG_FILE;
@@ -60,6 +62,8 @@ public class PluginConfig {
         this.maxEventsInMemory = 10000;
         this.notificationWebhook = null;
         this.dataPath = null;
+        this.rpcPort = 0;
+        this.rpcHost = "127.0.0.1";
     }
 
     /**
@@ -86,6 +90,8 @@ public class PluginConfig {
                     props.getProperty("memory.max.events", "10000"));
             config.notificationWebhook = props.getProperty("notification.webhook", null);
             config.dataPath = props.getProperty("data.path", null);
+            config.rpcPort  = Integer.parseInt(props.getProperty("rpc.port", "0"));
+            config.rpcHost  = props.getProperty("rpc.host", "127.0.0.1");
 
             System.out.println("[CONFIG] Configuración cargada desde: " + filePath);
         } else {
@@ -114,6 +120,8 @@ public class PluginConfig {
                 System.getProperty("besu.permission.memory.max.events", "10000"));
         config.notificationWebhook = System.getProperty("besu.permission.notification.webhook");
         config.dataPath = System.getProperty("besu.permission.data.path", null);
+        config.rpcPort  = Integer.parseInt(System.getProperty("besu.permission.rpc.port", "0"));
+        config.rpcHost  = System.getProperty("besu.permission.rpc.host", "127.0.0.1");
 
         return config;
     }
@@ -183,6 +191,12 @@ public class PluginConfig {
     public void setDataPath(String dataPath) {
         this.dataPath = dataPath;
     }
+
+    public int getRpcPort() { return rpcPort; }
+    public void setRpcPort(int rpcPort) { this.rpcPort = rpcPort; }
+
+    public String getRpcHost() { return rpcHost; }
+    public void setRpcHost(String rpcHost) { this.rpcHost = rpcHost; }
 
     /**
      * Imprime la configuración

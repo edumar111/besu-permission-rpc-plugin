@@ -74,10 +74,21 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
         );
 
         if (hasRpc) {
-            BesuConfiguration besuConfig = besuContext.getService(BesuConfiguration.class).orElse(null);
-            // Always use 127.0.0.1 — getConfiguredRpcHttpHost() returns 0.0.0.0 (bind addr)
-            int rpcPort = besuConfig != null ? besuConfig.getConfiguredRpcHttpPort() : 8545;
-            startEnodeResolver("127.0.0.1", rpcPort);
+            // Port resolution: plugin.properties rpc.port > BesuConfiguration > error
+            int rpcPort;
+            if (config.getRpcPort() > 0) {
+                rpcPort = config.getRpcPort();
+            } else {
+                rpcPort = besuContext.getService(BesuConfiguration.class)
+                        .map(BesuConfiguration::getConfiguredRpcHttpPort)
+                        .orElse(0);
+            }
+            if (rpcPort <= 0) {
+                System.err.println("[ERROR] rpc.port no configurado — agrega 'rpc.port=XXXX' en plugin.properties");
+            } else {
+                // Always connect to 127.0.0.1 — bind addr (0.0.0.0) no es usable para outbound
+                startEnodeResolver("127.0.0.1", rpcPort);
+            }
 
             startPermissionsFileWatcher();
             System.out.println("[✓] PermissionInterceptor Plugin iniciado - monitoreando " + dataPath);
