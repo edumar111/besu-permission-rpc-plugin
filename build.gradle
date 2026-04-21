@@ -79,6 +79,14 @@ task fatJar(type: Jar) {
             .collect { zipTree(it) }
     }
 
+    // Strip signatures from third-party signed JARs (bouncycastle via web3j).
+    // Leaving them triggers java.lang.SecurityException: Invalid signature file digest.
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
+    exclude 'META-INF/*.EC'
+    exclude 'META-INF/SIG-*'
+
     manifest {
         attributes(
             'Implementation-Title': project.name,
