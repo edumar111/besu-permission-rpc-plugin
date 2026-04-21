@@ -89,6 +89,33 @@ persistence.interval=300
 # database.path=/var/lib/besu/permission-events.db
 
 # ═══════════════════════════════════════════════════════════════════════════
+# BLOCKCHAIN AUDIT-LOG REPORTING
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Reporta cada ADD/REMOVE de accounts y enodes al contrato PermissionAuditLog
+# firmando las tx con la llave privada del nodo.
+blockchain.enabled=true
+
+# Address del contrato PermissionAuditLog
+blockchain.contract.address=0xd69Edd65B0E2605D8E5aE485DAf1a12033B50DC1
+
+# Chain ID de la red Besu (EIP-155)
+blockchain.chain.id=650540
+
+# Ruta de la llave privada del nodo (formato hex 32 bytes).
+# Si es relativa, se resuelve bajo el data-path del nodo.
+# Ej: para /root/lnet/writer => /root/lnet/writer/keys/key
+blockchain.node.key.path=keys/key
+
+# URL del RPC al que se envían las tx. Si no se define, usa
+# http://127.0.0.1:${rpc.port}/ — el RPC local del nodo.
+# blockchain.rpc.url=http://127.0.0.1:8545/
+
+# Gas (red sin fees => gasPrice=0)
+blockchain.gas.price=0
+blockchain.gas.limit=300000
+
+# ═══════════════════════════════════════════════════════════════════════════
 # BESU INTEGRATION
 # ═══════════════════════════════════════════════════════════════════════════
 

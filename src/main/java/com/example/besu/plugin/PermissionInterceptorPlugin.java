@@ -5,6 +5,12 @@ import org.hyperledger.besu.plugin.ServiceManager;
 import org.hyperledger.besu.plugin.services.BesuConfiguration;
 import org.hyperledger.besu.plugin.services.RpcEndpointService;
 import com.example.besu.plugin.config.PluginConfig;
+import com.example.besu.plugin.blockchain.BlockchainReporter;
+import com.example.besu.plugin.blockchain.ContractTxSender;
+import com.example.besu.plugin.blockchain.NodeKeyLoader;
+import org.web3j.crypto.Credentials;
+
+import java.math.BigInteger;
 
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -27,6 +33,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
     private PluginConfig config;
     private Path dataPath;
     private volatile Thread watcherThread;
+    private BlockchainReporter blockchainReporter;
 
     @Override
     public void register(final ServiceManager context) {
@@ -91,6 +98,13 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
             }
 
             startPermissionsFileWatcher();
+
+            if (config.isBlockchainEnabled()) {
+                startBlockchainReporter(rpcPort);
+            } else {
+                System.out.println("[BLOCKCHAIN] Reporter deshabilitado (blockchain.enabled=false)");
+            }
+
             System.out.println("[✓] PermissionInterceptor Plugin iniciado - monitoreando " + dataPath);
         } else {
             System.err.println("[✗] RpcEndpointService no disponible — RPC no habilitado en este nodo");
@@ -190,6 +204,57 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
         watcherThread.start();
     }
 
+    private void startBlockchainReporter(int rpcPort) {
+        try {
+            List<String> missing = new ArrayList<>();
+            if (config.getBlockchainContractAddress() == null || config.getBlockchainContractAddress().isBlank())
+                missing.add("blockchain.contract.address");
+            if (config.getBlockchainChainId() <= 0)
+                missing.add("blockchain.chain.id");
+            if (config.getBlockchainNodeKeyPath() == null || config.getBlockchainNodeKeyPath().isBlank())
+                missing.add("blockchain.node.key.path");
+            if (config.getBlockchainGasLimit() <= 0)
+                missing.add("blockchain.gas.limit");
+            if (!missing.isEmpty()) {
+                String msg = "[BLOCKCHAIN ERROR] Propiedades requeridas faltantes en plugin.properties: " + missing;
+                System.err.println(msg);
+                eventCapture.logLine(msg);
+                return;
+            }
+
+            Path keyPath = Paths.get(config.getBlockchainNodeKeyPath());
+            if (!keyPath.isAbsolute()) {
+                keyPath = dataPath.resolve(keyPath);
+            }
+            Credentials credentials = NodeKeyLoader.load(keyPath);
+
+            String rpcUrl = config.getBlockchainRpcUrl();
+            if (rpcUrl == null || rpcUrl.isBlank()) {
+                rpcUrl = "http://127.0.0.1:" + rpcPort + "/";
+            }
+
+            ContractTxSender sender = new ContractTxSender(
+                    rpcUrl,
+                    config.getBlockchainChainId(),
+                    BigInteger.valueOf(config.getBlockchainGasPrice()),
+                    BigInteger.valueOf(config.getBlockchainGasLimit()),
+                    config.getBlockchainContractAddress(),
+                    credentials);
+
+            blockchainReporter = new BlockchainReporter(sender, eventCapture);
+            eventCapture.addListener(blockchainReporter);
+            blockchainReporter.start();
+
+            System.out.println("[✓] Blockchain reporter iniciado. Sender=" + sender.getSenderAddress()
+                    + " contract=" + config.getBlockchainContractAddress()
+                    + " chainId=" + config.getBlockchainChainId()
+                    + " rpc=" + rpcUrl);
+        } catch (Exception e) {
+            System.err.println("[ERROR] No se pudo iniciar blockchain reporter: " + e.getMessage());
+            eventCapture.logLine("[BLOCKCHAIN ERROR] init failed: " + e.getMessage());
+        }
+    }
+
     private Set<String> readAllowlist(Path file, String key) {
         try {
             if (!Files.exists(file)) return new HashSet<>();
@@ -217,6 +282,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
     @Override
     public void stop() {
         if (watcherThread != null) watcherThread.interrupt();
+        if (blockchainReporter != null) blockchainReporter.stop();
         System.out.println("[✓] PermissionInterceptor Plugin detenido");
     }
 

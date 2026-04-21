@@ -37,6 +37,13 @@ dependencies {
     // HTTP Client (webhooks)
     implementation 'org.apache.httpcomponents.client5:httpclient5:5.3.1'
 
+    // Web3j (tx signing + ABI encoding). Use granular modules to avoid
+    // pulling okhttp / rxjava / jnr-unixsocket bloat from web3j:core.
+    implementation 'org.web3j:crypto:4.12.3'
+    implementation 'org.web3j:abi:4.12.3'
+    implementation 'org.web3j:rlp:4.12.3'
+    implementation 'org.web3j:utils:4.12.3'
+
     // Testing
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'

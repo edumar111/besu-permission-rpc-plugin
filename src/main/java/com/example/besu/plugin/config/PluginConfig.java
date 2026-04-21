@@ -53,6 +53,15 @@ public class PluginConfig {
     private int rpcPort;
     private String rpcHost;
 
+    // Blockchain audit-log integration
+    private boolean blockchainEnabled;
+    private String  blockchainContractAddress;
+    private long    blockchainChainId;
+    private String  blockchainNodeKeyPath;   // relative to data-path (or absolute)
+    private String  blockchainRpcUrl;        // optional; default: http://127.0.0.1:${rpcPort}
+    private long    blockchainGasPrice;
+    private long    blockchainGasLimit;
+
     public PluginConfig() {
         this.logFile = DEFAULT_LOG_FILE;
         this.metricsPort = Integer.parseInt(DEFAULT_METRICS_PORT);
@@ -64,6 +73,14 @@ public class PluginConfig {
         this.dataPath = null;
         this.rpcPort = 0;
         this.rpcHost = "127.0.0.1";
+
+        this.blockchainEnabled = false;
+        this.blockchainContractAddress = null;
+        this.blockchainChainId = 0L;
+        this.blockchainNodeKeyPath = null;
+        this.blockchainRpcUrl = null;
+        this.blockchainGasPrice = 0L;
+        this.blockchainGasLimit = 0L;
     }
 
     /**
@@ -92,6 +109,18 @@ public class PluginConfig {
             config.dataPath = props.getProperty("data.path", null);
             config.rpcPort  = Integer.parseInt(props.getProperty("rpc.port", "0"));
             config.rpcHost  = props.getProperty("rpc.host", "127.0.0.1");
+
+            config.blockchainEnabled = Boolean.parseBoolean(
+                    props.getProperty("blockchain.enabled", "false"));
+            config.blockchainContractAddress = props.getProperty("blockchain.contract.address");
+            String chainIdStr = props.getProperty("blockchain.chain.id");
+            config.blockchainChainId = chainIdStr != null ? Long.parseLong(chainIdStr) : 0L;
+            config.blockchainNodeKeyPath = props.getProperty("blockchain.node.key.path");
+            config.blockchainRpcUrl = props.getProperty("blockchain.rpc.url");
+            String gasPriceStr = props.getProperty("blockchain.gas.price");
+            config.blockchainGasPrice = gasPriceStr != null ? Long.parseLong(gasPriceStr) : 0L;
+            String gasLimitStr = props.getProperty("blockchain.gas.limit");
+            config.blockchainGasLimit = gasLimitStr != null ? Long.parseLong(gasLimitStr) : 0L;
 
             System.out.println("[CONFIG] Configuración cargada desde: " + filePath);
         } else {
@@ -122,6 +151,18 @@ public class PluginConfig {
         config.dataPath = System.getProperty("besu.permission.data.path", null);
         config.rpcPort  = Integer.parseInt(System.getProperty("besu.permission.rpc.port", "0"));
         config.rpcHost  = System.getProperty("besu.permission.rpc.host", "127.0.0.1");
+
+        config.blockchainEnabled = Boolean.parseBoolean(
+                System.getProperty("besu.permission.blockchain.enabled", "false"));
+        config.blockchainContractAddress = System.getProperty("besu.permission.blockchain.contract.address");
+        String chainIdSys = System.getProperty("besu.permission.blockchain.chain.id");
+        config.blockchainChainId = chainIdSys != null ? Long.parseLong(chainIdSys) : 0L;
+        config.blockchainNodeKeyPath = System.getProperty("besu.permission.blockchain.node.key.path");
+        config.blockchainRpcUrl = System.getProperty("besu.permission.blockchain.rpc.url");
+        String gasPriceSys = System.getProperty("besu.permission.blockchain.gas.price");
+        config.blockchainGasPrice = gasPriceSys != null ? Long.parseLong(gasPriceSys) : 0L;
+        String gasLimitSys = System.getProperty("besu.permission.blockchain.gas.limit");
+        config.blockchainGasLimit = gasLimitSys != null ? Long.parseLong(gasLimitSys) : 0L;
 
         return config;
     }
@@ -198,6 +239,27 @@ public class PluginConfig {
     public String getRpcHost() { return rpcHost; }
     public void setRpcHost(String rpcHost) { this.rpcHost = rpcHost; }
 
+    public boolean isBlockchainEnabled() { return blockchainEnabled; }
+    public void setBlockchainEnabled(boolean v) { this.blockchainEnabled = v; }
+
+    public String getBlockchainContractAddress() { return blockchainContractAddress; }
+    public void setBlockchainContractAddress(String v) { this.blockchainContractAddress = v; }
+
+    public long getBlockchainChainId() { return blockchainChainId; }
+    public void setBlockchainChainId(long v) { this.blockchainChainId = v; }
+
+    public String getBlockchainNodeKeyPath() { return blockchainNodeKeyPath; }
+    public void setBlockchainNodeKeyPath(String v) { this.blockchainNodeKeyPath = v; }
+
+    public String getBlockchainRpcUrl() { return blockchainRpcUrl; }
+    public void setBlockchainRpcUrl(String v) { this.blockchainRpcUrl = v; }
+
+    public long getBlockchainGasPrice() { return blockchainGasPrice; }
+    public void setBlockchainGasPrice(long v) { this.blockchainGasPrice = v; }
+
+    public long getBlockchainGasLimit() { return blockchainGasLimit; }
+    public void setBlockchainGasLimit(long v) { this.blockchainGasLimit = v; }
+
     /**
      * Imprime la configuración
      */
@@ -212,6 +274,15 @@ public class PluginConfig {
         System.out.println("CSV Export Enabled: " + enableCsvExport);
         System.out.println("Max Events in Memory: " + maxEventsInMemory);
         System.out.println("Notification Webhook: " + (notificationWebhook != null ? notificationWebhook : "disabled"));
+        System.out.println("Blockchain Enabled:    " + blockchainEnabled);
+        if (blockchainEnabled) {
+            System.out.println("Blockchain Contract:   " + blockchainContractAddress);
+            System.out.println("Blockchain Chain ID:   " + blockchainChainId);
+            System.out.println("Blockchain Key Path:   " + blockchainNodeKeyPath);
+            System.out.println("Blockchain RPC URL:    " + (blockchainRpcUrl != null ? blockchainRpcUrl : "(local: 127.0.0.1:" + rpcPort + ")"));
+            System.out.println("Blockchain Gas Price:  " + blockchainGasPrice);
+            System.out.println("Blockchain Gas Limit:  " + blockchainGasLimit);
+        }
         System.out.println("═".repeat(70) + "\n");
     }
 
