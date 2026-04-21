@@ -104,7 +104,19 @@ En la consola de Besu deberías ver:
 └─ TIMESTAMP: 2024-01-15 14:23:45.123
 ════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 ```
+```
+curl -X POST \
+--data '{"jsonrpc":"2.0","method":"perm_addAccountsToAllowlist","params":[["0x0561D5c2f2FfC3544B68a116a2F4510B1eeF03fc"]],"id":1}' \
+http://127.0.0.1:4545/ \
+-H "Content-Type: application/json"
+```
 
+```
+curl -X POST \
+--data '{"jsonrpc":"2.0","method":"perm_removeAccountsFromAllowlist","params":[["0x0561D5c2f2FfC3544B68a116a2F4510B1eeF03fc"]],"id":1}' \
+http://127.0.0.1:4545/ \
+-H "Content-Type: application/json"
+```
 ### 8️⃣ Ver los logs
 
 ```bash
