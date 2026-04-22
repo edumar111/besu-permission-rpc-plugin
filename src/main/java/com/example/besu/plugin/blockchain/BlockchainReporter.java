@@ -3,6 +3,8 @@ package com.example.besu.plugin.blockchain;
 import com.example.besu.plugin.PermissionEvent;
 import com.example.besu.plugin.PermissionEventCapture;
 import com.example.besu.plugin.PermissionEventListener;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.web3j.abi.FunctionEncoder;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Function;
@@ -15,6 +17,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class BlockchainReporter implements PermissionEventListener {
+
+    private static final Logger LOG = LogManager.getLogger(BlockchainReporter.class);
 
     private final ContractTxSender sender;
     private final PermissionEventCapture eventCapture;
@@ -33,7 +37,9 @@ public class BlockchainReporter implements PermissionEventListener {
         worker = new Thread(this::runLoop, "blockchain-reporter");
         worker.setDaemon(true);
         worker.start();
-        eventCapture.logLine("[BLOCKCHAIN] Reporter started. Sender address: " + sender.getSenderAddress());
+        String msg = "[BLOCKCHAIN] Reporter started. Sender address: " + sender.getSenderAddress();
+        eventCapture.logLine(msg);
+        LOG.info(msg);
     }
 
     public void stop() {
@@ -81,12 +87,13 @@ public class BlockchainReporter implements PermissionEventListener {
             try {
                 String encoded = FunctionEncoder.encode(job.function);
                 String txHash = sender.sendTx(encoded);
-                eventCapture.logLine("[BLOCKCHAIN] " + job.method + "(" + truncate(job.arg) + ") -> " + txHash);
-                System.out.println("[BLOCKCHAIN] " + job.method + " tx sent: " + txHash);
+                String okMsg = "[BLOCKCHAIN] " + job.method + "(" + truncate(job.arg) + ") -> " + txHash;
+                eventCapture.logLine(okMsg);
+                LOG.info(okMsg);
             } catch (Exception e) {
                 String msg = "[BLOCKCHAIN ERROR] " + job.method + "(" + truncate(job.arg) + "): " + e.getMessage();
                 eventCapture.logLine(msg);
-                System.err.println(msg);
+                LOG.error(msg);
             }
         }
     }

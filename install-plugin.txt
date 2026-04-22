@@ -1,0 +1,55 @@
+ # 1) Bajar la rama con el feature y compilar el fat JAR
+  cd /root/besu-permission-rpc-plugin
+  git fetch origin
+  git checkout feature/contract
+  git pull
+  ./gradlew clean fatJar
+
+  # 2) Respaldar el plugin actual y reemplazarlo (quita versiones previas para que Besu cargue una sola)
+  mv /root/lnet/writer/plugins/besu-permission-rpc-plugin-*.jar /root/lnet/writer/plugins/.backup 2>/dev/null;
+   \
+    mkdir -p /root/lnet/writer/plugins/.backup; \
+    mv /root/lnet/writer/plugins/besu-permission-rpc-plugin-*.jar /root/lnet/writer/plugins/.backup/
+  2>/dev/null
+  cp build/libs/besu-permission-rpc-plugin-2.0.0-fat.jar /root/lnet/writer/plugins/
+  ls -la /root/lnet/writer/plugins/
+
+  # 3) Añadir bloque blockchain a plugin.properties (solo si no existe ya)
+  grep -q '^blockchain\.enabled' /root/lnet/writer/plugin.properties || cat >>
+  /root/lnet/writer/plugin.properties <<'EOF'
+
+  # ============================================================
+  # BLOCKCHAIN AUDIT-LOG REPORTING
+  # ============================================================
+  blockchain.enabled=true
+  blockchain.contract.address=0xd69Edd65B0E2605D8E5aE485DAf1a12033B50DC1
+  blockchain.chain.id=650540
+  blockchain.node.key.path=/root/lnet/writer/keys/key
+  blockchain.gas.price=0
+  blockchain.gas.limit=300000
+  EOF
+
+  # 4) Verificar config
+  tail -15 /root/lnet/writer/plugin.properties
+
+  # 5) Reiniciar Besu (mata proceso y relanza con tu script)
+  pkill -f 'besu' ; sleep 3 ; cd /root/lnet/writer && nohup ./start-besu.sh > logs/besu.out 2>&1 &
+
+  # 6) Seguir los logs para validar arranque
+  tail -f /root/lnet/writer/logs/permission-events.log
+
+  Importante sobre la ruta de la llave: en la captura, keys/ está al mismo nivel que data/ bajo
+  /root/lnet/writer. El plugin resuelve rutas relativas contra el data-path de Besu (típicamente
+  /root/lnet/writer/data), así que si usas keys/key relativo, apuntaría a /root/lnet/writer/data/keys/key —
+  incorrecto. Por eso te dejo la ruta absoluta /root/lnet/writer/keys/key en el paso 3.
+
+  Qué buscar en el log para confirmar que funciona:
+  - Al arrancar: [✓] Blockchain reporter iniciado. Sender=0x... contract=0xd69E... chainId=650540
+  rpc=http://127.0.0.1:<port>/
+  - Al agregar un account/enode: [BLOCKCHAIN] reportAccountAdded(0x...) -> 0x<txhash>
+  - Si la tx revierte (ej. nodo no registrado en NodePermissionRules): [BLOCKCHAIN ERROR]
+  reportAccountAdded(...): eth_sendRawTransaction error: {...}
+
+  Recuerda: la dirección del sender (derivada de la llave en /root/lnet/writer/keys/key) debe estar
+  pre-registrada en NodePermissionRules por el owner del contrato, si no todas las tx revertirán con
+  NodeNotRegistered.

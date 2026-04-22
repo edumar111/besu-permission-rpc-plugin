@@ -8,6 +8,8 @@ import com.example.besu.plugin.config.PluginConfig;
 import com.example.besu.plugin.blockchain.BlockchainReporter;
 import com.example.besu.plugin.blockchain.ContractTxSender;
 import com.example.besu.plugin.blockchain.NodeKeyLoader;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.web3j.crypto.Credentials;
 
 import java.math.BigInteger;
@@ -27,6 +29,8 @@ import java.util.stream.Collectors;
 
 public class PermissionInterceptorPlugin implements BesuPlugin {
 
+    private static final Logger LOG = LogManager.getLogger(PermissionInterceptorPlugin.class);
+
     private ServiceManager besuContext;
     private PermissionEventCapture eventCapture;
     private NodeInfoProvider nodeInfoProvider;
@@ -45,14 +49,14 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                     ? PluginConfig.loadFromFile(configPath)
                     : PluginConfig.loadFromSystemProperties();
         } catch (IOException e) {
-            System.err.println("[ERROR] Cargando configuración: " + e.getMessage());
+            LOG.error("[BESU PERMISSION PLUGIN] Error cargando configuración: {}", e.getMessage());
             this.config = new PluginConfig();
         }
 
         this.eventCapture = new PermissionEventCapture(config.getLogFile());
         this.nodeInfoProvider = new NodeInfoProvider(context);
 
-        System.out.println("[BESU PERMISSION RPC PLUGIN] Registrando plugin...");
+        LOG.info("[BESU PERMISSION PLUGIN] Registrando plugin...");
     }
 
     @Override
@@ -65,7 +69,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                     .map(BesuConfiguration::getDataPath)
                     .orElse(Paths.get("."));
         }
-        System.out.println("[BESU PERMISSION PLUGIN] data-path resuelto: " + dataPath.toAbsolutePath());
+        LOG.info("[BESU PERMISSION PLUGIN] data-path resuelto: {}", dataPath.toAbsolutePath());
 
         boolean hasRpc = besuContext.getService(RpcEndpointService.class).isPresent();
 
@@ -91,7 +95,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                         .orElse(0);
             }
             if (rpcPort <= 0) {
-                System.err.println("[ERROR] rpc.port no configurado — agrega 'rpc.port=XXXX' en plugin.properties");
+                LOG.error("[BESU PERMISSION PLUGIN] rpc.port no configurado — agrega 'rpc.port=XXXX' en plugin.properties");
             } else {
                 // Always connect to 127.0.0.1 — bind addr (0.0.0.0) no es usable para outbound
                 startEnodeResolver("127.0.0.1", rpcPort);
@@ -102,12 +106,12 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
             if (config.isBlockchainEnabled()) {
                 startBlockchainReporter(rpcPort);
             } else {
-                System.out.println("[BLOCKCHAIN] Reporter deshabilitado (blockchain.enabled=false)");
+                LOG.info("[BLOCKCHAIN] Reporter deshabilitado (blockchain.enabled=false)");
             }
 
-            System.out.println("[✓] PermissionInterceptor Plugin iniciado - monitoreando " + dataPath);
+            LOG.info("[BESU PERMISSION PLUGIN] PermissionInterceptor Plugin iniciado - monitoreando {}", dataPath);
         } else {
-            System.err.println("[✗] RpcEndpointService no disponible — RPC no habilitado en este nodo");
+            LOG.error("[BESU PERMISSION PLUGIN] RpcEndpointService no disponible — RPC no habilitado en este nodo");
         }
 
         config.printConfig();
@@ -132,7 +136,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                             String enode = result.asText();
                             nodeInfoProvider.setEnode(enode);
                             eventCapture.logLine("Local Node Enode: " + enode);
-                            System.out.println("[✓] Enode resuelto: " + enode);
+                            LOG.info("[BESU PERMISSION PLUGIN] Enode resuelto: {}", enode);
                             return;
                         }
                     }
@@ -140,7 +144,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                     Thread.currentThread().interrupt();
                     return;
                 } catch (Exception e) {
-                    System.err.println("[WARN] Intento " + attempt + " obteniendo enode: " + e.getMessage());
+                    LOG.warn("[BESU PERMISSION PLUGIN] Intento {} obteniendo enode: {}", attempt, e.getMessage());
                 }
             }
         }, "enode-resolver");
@@ -160,7 +164,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                 WatchService watcher = dataPath.getFileSystem().newWatchService();
                 dataPath.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY);
 
-                System.out.println("[✓] Watcheando permisos en: " + permFile);
+                LOG.info("[BESU PERMISSION PLUGIN] Watcheando permisos en: {}", permFile);
 
                 while (!Thread.currentThread().isInterrupted()) {
                     WatchKey key = watcher.take();
@@ -196,7 +200,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                System.err.println("[ERROR] Watcher de permisos: " + e.getMessage());
+                LOG.error("[BESU PERMISSION PLUGIN] Watcher de permisos: {}", e.getMessage());
             }
         }, "permission-file-watcher");
 
@@ -217,7 +221,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
                 missing.add("blockchain.gas.limit");
             if (!missing.isEmpty()) {
                 String msg = "[BLOCKCHAIN ERROR] Propiedades requeridas faltantes en plugin.properties: " + missing;
-                System.err.println(msg);
+                LOG.error(msg);
                 eventCapture.logLine(msg);
                 return;
             }
@@ -245,12 +249,13 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
             eventCapture.addListener(blockchainReporter);
             blockchainReporter.start();
 
-            System.out.println("[✓] Blockchain reporter iniciado. Sender=" + sender.getSenderAddress()
-                    + " contract=" + config.getBlockchainContractAddress()
-                    + " chainId=" + config.getBlockchainChainId()
-                    + " rpc=" + rpcUrl);
+            LOG.info("[BLOCKCHAIN] Reporter iniciado. Sender={} contract={} chainId={} rpc={}",
+                    sender.getSenderAddress(),
+                    config.getBlockchainContractAddress(),
+                    config.getBlockchainChainId(),
+                    rpcUrl);
         } catch (Exception e) {
-            System.err.println("[ERROR] No se pudo iniciar blockchain reporter: " + e.getMessage());
+            LOG.error("[BLOCKCHAIN ERROR] No se pudo iniciar blockchain reporter: {}", e.getMessage());
             eventCapture.logLine("[BLOCKCHAIN ERROR] init failed: " + e.getMessage());
         }
     }
@@ -283,7 +288,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
     public void stop() {
         if (watcherThread != null) watcherThread.interrupt();
         if (blockchainReporter != null) blockchainReporter.stop();
-        System.out.println("[✓] PermissionInterceptor Plugin detenido");
+        LOG.info("[BESU PERMISSION PLUGIN] PermissionInterceptor Plugin detenido");
     }
 
     public PermissionEventCapture getEventCapture() { return eventCapture; }
