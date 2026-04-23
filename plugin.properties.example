@@ -18,15 +18,6 @@ log.file=/var/log/besu/permission-events.log
 memory.max.events=10000
 
 # ═══════════════════════════════════════════════════════════════════════════
-# FILTERING CONFIGURATION (Future)
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Filtrar eventos por tipo (comma-separated)
-# Ej: filter.event.types=ADD_ACCOUNTS,ADD_NODES
-# Si está vacío, se capturan todos los tipos
-filter.event.types=
-
-# ═══════════════════════════════════════════════════════════════════════════
 # ADVANCED CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 
