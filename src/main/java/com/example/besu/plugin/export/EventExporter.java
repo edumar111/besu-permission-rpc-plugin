@@ -5,11 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Exporta eventos capturados a diferentes formatos
- * Soporta: JSON, CSV, XML
+ * Soporta: JSON, XML, TSV, HTML
  */
 public class EventExporter {
 
@@ -27,24 +26,6 @@ public class EventExporter {
         } catch (Exception e) {
             return "{\"error\": \"" + e.getMessage() + "\"}";
         }
-    }
-
-    /**
-     * Exporta eventos a formato CSV
-     * Formato: TYPE,ENODE,ITEMS,TIMESTAMP
-     */
-    public static String exportToCsv(List<PermissionEvent> events) {
-        StringBuilder csv = new StringBuilder();
-        csv.append("TYPE,ENODE,ITEMS,TIMESTAMP\n");
-
-        for (PermissionEvent event : events) {
-            csv.append(event.getEventType()).append(",");
-            csv.append("\"").append(event.getEnode()).append("\",");
-            csv.append("\"").append(String.join("|", event.getAddresses())).append("\",");
-            csv.append(event.getTimestamp().format(formatter)).append("\n");
-        }
-
-        return csv.toString();
     }
 
     /**

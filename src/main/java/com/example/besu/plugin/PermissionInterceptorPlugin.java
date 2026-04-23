@@ -75,12 +75,7 @@ public class PermissionInterceptorPlugin implements BesuPlugin {
 
         eventCapture.logStartup(
                 config.getLogFile(),
-                String.valueOf(config.getMetricsPort()),
-                config.isEnableRestApi(),
-                config.isEnableMetrics(),
-                config.isEnableCsvExport(),
                 config.getMaxEventsInMemory(),
-                config.getNotificationWebhook() != null ? config.getNotificationWebhook() : "disabled",
                 java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
         );
 

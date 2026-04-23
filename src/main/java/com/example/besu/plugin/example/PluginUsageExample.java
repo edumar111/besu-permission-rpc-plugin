@@ -26,9 +26,6 @@ public class PluginUsageExample {
                     System.out.println("Nueva cuenta permisionada!");
                     System.out.println("Enode: " + event.getEnode());
                     System.out.println("Cuentas: " + event.getAddresses());
-                    
-                    // Aquí puedes enviar a una base de datos, API, etc.
-                    saveToDatabase(event);
                 }
             }
         });
@@ -58,22 +55,6 @@ public class PluginUsageExample {
         
         // Aquí puedes conectar a los nuevos nodos
         connectToNodes(event.getAddresses());
-    }
-    
-    /**
-     * Guarda el evento en una base de datos (ejemplo)
-     */
-    private static void saveToDatabase(PermissionEvent event) {
-        // Ejemplo de persistencia
-        String sql = String.format(
-            "INSERT INTO permission_events (type, enode, items, timestamp) VALUES ('%s', '%s', '%s', '%s')",
-            event.getEventType(),
-            event.getEnode(),
-            String.join(",", event.getAddresses()),
-            event.getTimestamp()
-        );
-        
-        System.out.println("[DB] Ejecutar: " + sql);
     }
     
     /**

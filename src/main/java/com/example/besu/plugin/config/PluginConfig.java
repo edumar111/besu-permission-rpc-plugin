@@ -14,9 +14,6 @@ public class PluginConfig {
 
     // Detectar ruta por defecto según el sistema
     private static final String DEFAULT_LOG_FILE = getDefaultLogPath();
-    private static final String DEFAULT_METRICS_PORT = "9090";
-    private static final boolean DEFAULT_ENABLE_REST_API = true;
-    private static final boolean DEFAULT_ENABLE_METRICS = true;
 
     /**
      * Obtiene la ruta por defecto del log según dónde se ejecute Besu
@@ -43,12 +40,7 @@ public class PluginConfig {
     }
 
     private String logFile;
-    private int metricsPort;
-    private boolean enableRestApi;
-    private boolean enableMetrics;
-    private boolean enableCsvExport;
     private int maxEventsInMemory;
-    private String notificationWebhook;
     private String dataPath;
     private int rpcPort;
     private String rpcHost;
@@ -64,12 +56,7 @@ public class PluginConfig {
 
     public PluginConfig() {
         this.logFile = DEFAULT_LOG_FILE;
-        this.metricsPort = Integer.parseInt(DEFAULT_METRICS_PORT);
-        this.enableRestApi = DEFAULT_ENABLE_REST_API;
-        this.enableMetrics = DEFAULT_ENABLE_METRICS;
-        this.enableCsvExport = true;
         this.maxEventsInMemory = 10000;
-        this.notificationWebhook = null;
         this.dataPath = null;
         this.rpcPort = 0;
         this.rpcHost = "127.0.0.1";
@@ -95,17 +82,8 @@ public class PluginConfig {
             props.load(Files.newInputStream(path));
 
             config.logFile = props.getProperty("log.file", DEFAULT_LOG_FILE);
-            config.metricsPort = Integer.parseInt(
-                    props.getProperty("metrics.port", DEFAULT_METRICS_PORT));
-            config.enableRestApi = Boolean.parseBoolean(
-                    props.getProperty("api.rest.enabled", "true"));
-            config.enableMetrics = Boolean.parseBoolean(
-                    props.getProperty("metrics.enabled", "true"));
-            config.enableCsvExport = Boolean.parseBoolean(
-                    props.getProperty("export.csv.enabled", "true"));
             config.maxEventsInMemory = Integer.parseInt(
                     props.getProperty("memory.max.events", "10000"));
-            config.notificationWebhook = props.getProperty("notification.webhook", null);
             config.dataPath = props.getProperty("data.path", null);
             config.rpcPort  = Integer.parseInt(props.getProperty("rpc.port", "0"));
             config.rpcHost  = props.getProperty("rpc.host", "127.0.0.1");
@@ -137,17 +115,8 @@ public class PluginConfig {
         PluginConfig config = new PluginConfig();
 
         config.logFile = System.getProperty("besu.permission.log.file", DEFAULT_LOG_FILE);
-        config.metricsPort = Integer.parseInt(
-                System.getProperty("besu.permission.metrics.port", DEFAULT_METRICS_PORT));
-        config.enableRestApi = Boolean.parseBoolean(
-                System.getProperty("besu.permission.api.rest.enabled", "true"));
-        config.enableMetrics = Boolean.parseBoolean(
-                System.getProperty("besu.permission.metrics.enabled", "true"));
-        config.enableCsvExport = Boolean.parseBoolean(
-                System.getProperty("besu.permission.export.csv.enabled", "true"));
         config.maxEventsInMemory = Integer.parseInt(
                 System.getProperty("besu.permission.memory.max.events", "10000"));
-        config.notificationWebhook = System.getProperty("besu.permission.notification.webhook");
         config.dataPath = System.getProperty("besu.permission.data.path", null);
         config.rpcPort  = Integer.parseInt(System.getProperty("besu.permission.rpc.port", "0"));
         config.rpcHost  = System.getProperty("besu.permission.rpc.host", "127.0.0.1");
@@ -177,52 +146,12 @@ public class PluginConfig {
         this.logFile = logFile;
     }
 
-    public int getMetricsPort() {
-        return metricsPort;
-    }
-
-    public void setMetricsPort(int metricsPort) {
-        this.metricsPort = metricsPort;
-    }
-
-    public boolean isEnableRestApi() {
-        return enableRestApi;
-    }
-
-    public void setEnableRestApi(boolean enableRestApi) {
-        this.enableRestApi = enableRestApi;
-    }
-
-    public boolean isEnableMetrics() {
-        return enableMetrics;
-    }
-
-    public void setEnableMetrics(boolean enableMetrics) {
-        this.enableMetrics = enableMetrics;
-    }
-
-    public boolean isEnableCsvExport() {
-        return enableCsvExport;
-    }
-
-    public void setEnableCsvExport(boolean enableCsvExport) {
-        this.enableCsvExport = enableCsvExport;
-    }
-
     public int getMaxEventsInMemory() {
         return maxEventsInMemory;
     }
 
     public void setMaxEventsInMemory(int maxEventsInMemory) {
         this.maxEventsInMemory = maxEventsInMemory;
-    }
-
-    public String getNotificationWebhook() {
-        return notificationWebhook;
-    }
-
-    public void setNotificationWebhook(String notificationWebhook) {
-        this.notificationWebhook = notificationWebhook;
     }
 
     public String getDataPath() {
@@ -268,12 +197,7 @@ public class PluginConfig {
         System.out.println("BESU PERMISSION PLUGIN CONFIGURATION");
         System.out.println("═".repeat(70));
         System.out.println("Log File: " + logFile);
-        System.out.println("Metrics Port: " + metricsPort);
-        System.out.println("REST API Enabled: " + enableRestApi);
-        System.out.println("Metrics Enabled: " + enableMetrics);
-        System.out.println("CSV Export Enabled: " + enableCsvExport);
         System.out.println("Max Events in Memory: " + maxEventsInMemory);
-        System.out.println("Notification Webhook: " + (notificationWebhook != null ? notificationWebhook : "disabled"));
         System.out.println("Blockchain Enabled:    " + blockchainEnabled);
         if (blockchainEnabled) {
             System.out.println("Blockchain Contract:   " + blockchainContractAddress);
@@ -290,12 +214,7 @@ public class PluginConfig {
     public String toString() {
         return "PluginConfig{" +
                 "logFile='" + logFile + '\'' +
-                ", metricsPort=" + metricsPort +
-                ", enableRestApi=" + enableRestApi +
-                ", enableMetrics=" + enableMetrics +
-                ", enableCsvExport=" + enableCsvExport +
                 ", maxEventsInMemory=" + maxEventsInMemory +
-                ", notificationWebhook='" + notificationWebhook + '\'' +
                 '}';
     }
 }

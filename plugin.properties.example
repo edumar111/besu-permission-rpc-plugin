@@ -10,56 +10,12 @@
 log.file=/var/log/besu/permission-events.log
 
 # ═══════════════════════════════════════════════════════════════════════════
-# REST API CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Habilitar REST API para consultar eventos
-api.rest.enabled=true
-
-# Puerto para la API REST (opcional)
-api.rest.port=9091
-
-# ═══════════════════════════════════════════════════════════════════════════
-# METRICS CONFIGURATION (Prometheus)
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Habilitar métricas Prometheus
-metrics.enabled=true
-
-# Puerto para exponer métricas Prometheus
-# Accesible en: http://localhost:9090/metrics
-metrics.port=9090
-
-# ═══════════════════════════════════════════════════════════════════════════
-# EXPORT CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Habilitar exportación a CSV
-export.csv.enabled=true
-
-# Ruta para exportar CSV (opcional)
-export.csv.path=/var/log/besu/permission-events.csv
-
-# ═══════════════════════════════════════════════════════════════════════════
 # MEMORY CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 
 # Máximo número de eventos a mantener en memoria
 # Los eventos más antiguos se descartan cuando se alcanza este límite
 memory.max.events=10000
-
-# ═══════════════════════════════════════════════════════════════════════════
-# NOTIFICATION CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Webhook para notificaciones de eventos
-# Soporta: HTTP, Slack, Discord, etc.
-# Ejemplos:
-#   notification.webhook=http://localhost:8000/webhook
-#   notification.webhook=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-#   notification.webhook=https://discordapp.com/api/webhooks/YOUR/WEBHOOK
-
-notification.webhook=http://localhost:8000/webhook
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FILTERING CONFIGURATION (Future)
@@ -82,11 +38,6 @@ verbose.enabled=false
 
 # Intervalo de persistencia en segundos (guardar datos en disco)
 persistence.interval=300
-
-# Almacenar eventos en base de datos (experimental)
-# database.enabled=false
-# database.type=sqlite
-# database.path=/var/lib/besu/permission-events.db
 
 # ═══════════════════════════════════════════════════════════════════════════
 # BLOCKCHAIN AUDIT-LOG REPORTING
