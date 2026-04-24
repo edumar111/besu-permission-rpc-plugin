@@ -37,7 +37,9 @@ public class BlockchainReporter implements PermissionEventListener {
         worker = new Thread(this::runLoop, "blockchain-reporter");
         worker.setDaemon(true);
         worker.start();
-        String msg = "[BLOCKCHAIN] Reporter started. Sender address: " + sender.getSenderAddress();
+        String msg = "[BLOCKCHAIN] Reporter started. Contract: " + sender.getContractAddress()
+                + " | ChainId: " + sender.getChainId()
+                + " | Sender: " + sender.getSenderAddress();
         eventCapture.logLine(msg);
         LOG.info(msg);
     }

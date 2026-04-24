@@ -41,6 +41,14 @@ public class ContractTxSender {
         return credentials.getAddress();
     }
 
+    public String getContractAddress() {
+        return contractAddress;
+    }
+
+    public long getChainId() {
+        return chainId;
+    }
+
     public String sendTx(String encodedFunction) throws Exception {
         BigInteger nonce = getPendingNonce();
         RawTransaction tx = RawTransaction.createTransaction(
