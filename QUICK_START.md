@@ -256,15 +256,6 @@ Para más detalles, consulta:
 
 ---
 
-## 🎯 Próximas Características (v1.1.0)
-
-- ✏️ Soporte para WebSocket
-- ✏️ REST API para consultar eventos
-- ✏️ Dashboard web
-- ✏️ Integración con Prometheus para métricas
-
----
-
 ## 📞 Soporte
 
 Para problemas o sugerencias:

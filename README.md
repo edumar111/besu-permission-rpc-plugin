@@ -1,266 +1,228 @@
-# Besu Permission RPC Plugin v2.0.0
+# Besu Permission RPC Plugin
 
-Un plugin avanzado para Hyperledger Besu que intercepta llamadas RPC a métodos de permisos y captura automáticamente el enode del nodo y las direcciones/nodos permisionados.
+Plugin para Hyperledger Besu que detecta cambios en la allowlist de cuentas y nodos (`perm_addAccountsToAllowlist`, `perm_removeAccountsFromAllowlist`, `perm_addNodesToAllowlist`, `perm_removeNodesFromAllowlist`), los registra en un log local y los reporta on-chain a un contrato `PermissionAuditLog` firmando las transacciones con la llave privada del nodo.
 
-> **✅ Actualizado para Besu 25.8.0 y Java 17** - Mejor rendimiento, más seguro, totalmente compatible.
+- **Versión:** 2.0.0
+- **Besu compatible:** 25.8.0+
+- **Java:** 21 (toolchain Gradle)
 
-## Características
+## Cómo funciona
 
-✅ **Interceptación automática de RPC** - Captura eventos de `perm_addAccountsToAllowlist` y `perm_addNodesToAllowlist`
-✅ **Extracción de datos automática** - Obtiene el enode del nodo actual y los items permisionados
-✅ **Logging persistente** - Almacena eventos en `/var/log/besu/permission-events.log`
-✅ **Event listeners** - Sistema de listeners para procesar eventos en tiempo real
-✅ **Compatible con Gradle** - Compilación rápida y modular
+El plugin **no** intercepta el RPC directamente. Observa el fichero `permissions_config.toml` (el que Besu modifica cuando recibe una llamada `perm_*`) con un `WatchService`, calcula el diff entre el estado anterior y el nuevo, y por cada alta/baja:
+
+1. Añade el evento a un store en memoria (`CopyOnWriteArrayList`).
+2. Escribe un bloque formateado al log del plugin (por defecto `/var/log/besu/permission-events.log`).
+3. Si `blockchain.enabled=true`, encola una tx firmada para llamar a `reportAccountAdded/Removed` o `reportEnodeAdded/Removed` en el contrato `PermissionAuditLog`, usando la `key` del nodo como signer.
+
+```
+Besu escribe permissions_config.toml
+  └─ file watcher calcula diff → PermissionEventCapture.capture*
+       ├─ añade PermissionEvent al store
+       ├─ escribe bloque al log del plugin
+       └─ notifica listeners → BlockchainReporter
+            └─ firma tx + eth_sendRawTransaction → PermissionAuditLog.reportXxx(...)
+```
 
 ## Requisitos
 
-- Java 17+ (antes era 11+)
-- Gradle 7.0+
-- Hyperledger Besu 25.8.0+ (antes era 23.10.3+)
-
-## Estructura del Proyecto
-
-```
-besu-permission-rpc-plugin/
-├── build.gradle                                          # Configuración Gradle
-├── settings.gradle                                       # Configuración del proyecto
-├── README.md                                             # Este archivo
-├── src/
-│   └── main/
-│       ├── java/com/example/besu/plugin/
-│       │   ├── PermissionInterceptorPlugin.java         # Plugin principal
-│       │   ├── PermissionEventCapture.java              # Capturador de eventos
-│       │   ├── PermissionEvent.java                     # Modelo de evento
-│       │   ├── PermissionEventListener.java             # Interfaz de listener
-│       │   ├── NodeInfoProvider.java                    # Proveedor de info del nodo
-│       │   └── PermissionRpcInterceptor.java            # Interceptor RPC
-│       └── resources/
-│           └── META-INF/services/
-│               └── org.hyperledger.besu.plugin.BesuPlugin
-└── build/                                                # Salida compilada
-    ├── libs/
-    │   ├── besu-permission-rpc-plugin-1.0.0.jar
-    │   └── besu-permission-rpc-plugin-1.0.0-fat.jar
-```
+- **Java 21** (Gradle toolchain la descarga automáticamente si no la tienes).
+- **Hyperledger Besu 25.8.0** o superior corriendo con `--rpc-http-enabled` y al menos la API `PERM` habilitada (más `ETH,NET,WEB3`).
+- Una dirección de contrato `PermissionAuditLog` desplegada en la misma red, y la `key` privada del nodo (hex de 32 bytes) disponible en disco — que es la cuenta que firmará las tx.
+- Esa misma cuenta **debe estar en la allowlist de accounts** si tu red tiene account-permissioning activado; si no, Besu rechazará sus tx con `-32007 "Sender account not authorized to send transactions"`.
 
 ## Compilación
 
-### Opción 1: Compilar con Gradle
+```bash
+./gradlew clean fatJar
+ls build/libs/
+# → besu-permission-rpc-plugin-2.0.0-fat.jar
+```
+
+El artefacto desplegable es el **fat JAR**. El `jar` "finito" (sin dependencias) no sirve para Besu porque faltarían Jackson, HttpClient y web3j en runtime.
+
+Tareas Gradle útiles:
 
 ```bash
-# Clonar el repositorio
-git clone <tu-repositorio>
-cd besu-permission-rpc-plugin
-
-# Compilar el proyecto
-./gradlew build
-
-# El JAR compilado estará en:
-# build/libs/besu-permission-rpc-plugin-1.0.0-fat.jar
+./gradlew build              # compila + tests + fatJar
+./gradlew build -x test      # compila + fatJar sin tests
+./gradlew fatJar             # solo el fat JAR
+./gradlew clean              # limpia build/
+./gradlew test               # solo tests
 ```
 
-### Opción 2: Compilación rápida
+## Instalación
+
+1. Copia el fat JAR al directorio de plugins de Besu:
+
+    ```bash
+    cp build/libs/besu-permission-rpc-plugin-2.0.0-fat.jar /opt/besu/plugins/
+    ```
+
+2. Crea el fichero de configuración del plugin (ver [Configuración](#configuración)) y pásalo a Besu por `-D`:
+
+    ```bash
+    besu \
+      --data-path=/data \
+      --p2p-port=30303 \
+      --rpc-http-enabled \
+      --rpc-http-port=8545 \
+      --rpc-http-api=ETH,NET,WEB3,PERM \
+      --plugin-dir=/opt/besu/plugins \
+      -Dbesu.permission.config=/etc/besu/plugin.properties
+    ```
+
+3. Arranca Besu. En el log del plugin verás el banner de arranque con `Log File`, `Max Events in Memory`, `Local Node Enode: resolving...` y, si `blockchain.enabled=true`, `[BLOCKCHAIN] Reporter started. Sender address: 0x…`.
+
+## Configuración
+
+El plugin lee sus propiedades desde el fichero apuntado por `-Dbesu.permission.config=...` o (si no se define) desde propiedades del sistema `-Dbesu.permission.<clave>=...`.
+
+Plantilla completa en [`plugin.properties.example`](./plugin.properties.example). Opciones:
+
+| Clave | Sistema property | Default | Descripción |
+|---|---|---|---|
+| `log.file` | `besu.permission.log.file` | `/var/log/besu/permission-events.log` (Linux) | Fichero donde se escriben los bloques de eventos |
+| `memory.max.events` | `besu.permission.memory.max.events` | `10000` | Máximo de eventos mantenidos en memoria |
+| `data.path` | `besu.permission.data.path` | resuelto vía `BesuConfiguration` | Data path de Besu (donde está `permissions_config.toml`) |
+| `rpc.port` | `besu.permission.rpc.port` | resuelto vía `BesuConfiguration` | Puerto HTTP RPC local, usado para resolver el enode y enviar tx |
+| `rpc.host` | `besu.permission.rpc.host` | `127.0.0.1` | — |
+| `blockchain.enabled` | `besu.permission.blockchain.enabled` | `false` | Activa el reporte on-chain |
+| `blockchain.contract.address` | `besu.permission.blockchain.contract.address` | — | Address del `PermissionAuditLog` |
+| `blockchain.chain.id` | `besu.permission.blockchain.chain.id` | — | Chain ID (EIP-155) |
+| `blockchain.node.key.path` | `besu.permission.blockchain.node.key.path` | — | Ruta a la key privada del nodo (relativa al data-path o absoluta) |
+| `blockchain.rpc.url` | `besu.permission.blockchain.rpc.url` | `http://127.0.0.1:${rpc.port}/` | RPC donde se envían las tx |
+| `blockchain.gas.price` | `besu.permission.blockchain.gas.price` | — | gasPrice en wei (0 en redes sin fees) |
+| `blockchain.gas.limit` | `besu.permission.blockchain.gas.limit` | — | gasLimit por tx |
+
+Si `blockchain.enabled=true` y falta alguna de `contract.address`, `chain.id`, `node.key.path`, `gas.limit`, el plugin imprime `[BLOCKCHAIN ERROR] Propiedades requeridas faltantes en plugin.properties: [...]` y no arranca el reporter (el watcher y el log local sí siguen funcionando).
+
+## Verificar que funciona
+
+Tras arrancar Besu, ejecuta una alta de cuenta:
 
 ```bash
-./gradlew jar
+curl -s -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"perm_addAccountsToAllowlist","params":[["0x99590c4D8971275e6D90467724D9169Ab7d1749F"]],"id":1}' \
+  http://127.0.0.1:8545/
 ```
 
-## Instalación en Besu
+1. **Log del plugin** (`permission-events.log`) — deberías ver:
 
-### 1. Crear directorio de plugins
+    ```
+    ════════════════════════════════════════════════════════════════════════════════════════════════════
+    ┌─ [PERMISSION EVENT INTERCEPTED] 2026-04-23 20:46:11.101
+    ├─ TYPE: ADD_ACCOUNTS
+    ├─ ENODE (Current Node): enode://…@<ip>:<port>
+    ├─ ITEMS ADDED: 1
+    └─  [1] 0x99590c4d8971275e6d90467724d9169ab7d1749f
+    └─ TIMESTAMP: 2026-04-23 20:46:11.101
+    ════════════════════════════════════════════════════════════════════════════════════════════════════
+    [BLOCKCHAIN] reportAccountAdded(0x99590c4d…1749f) -> 0x<txHash>
+    ```
 
-```bash
-mkdir -p /opt/besu/plugins
-```
+2. **On-chain** — con el `txHash` confirma que se minó:
 
-### 2. Copiar el JAR compilado
+    ```bash
+    curl -s -X POST -H "Content-Type: application/json" \
+      --data '{"jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":["0x<txHash>"],"id":1}' \
+      http://127.0.0.1:8545/ | jq '.result | {status, blockNumber, logs}'
+    ```
 
-```bash
-cp build/libs/besu-permission-rpc-plugin-1.0.0-fat.jar /opt/besu/plugins/
-```
+    `status: "0x1"` → registrado en el contrato. `"0x0"` → la tx revertió (la función `require`/`revert` del contrato no se cumplió).
 
-### 3. Crear directorio de logs
+3. **Búsqueda inversa** — encuentra todas las tx del contrato que afectan a una address concreta (sin depender de guardar `txHash`):
 
-```bash
-mkdir -p /var/log/besu
-chmod 755 /var/log/besu
-```
+    ```bash
+    ADDR_TOPIC=0x00000000000000000000000099590c4d8971275e6d90467724d9169ab7d1749f
+    curl -s -X POST -H "Content-Type: application/json" --data "{
+      \"jsonrpc\":\"2.0\",\"method\":\"eth_getLogs\",\"id\":1,
+      \"params\":[{\"fromBlock\":\"earliest\",\"toBlock\":\"latest\",
+                   \"address\":\"<CONTRACT>\",\"topics\":[null,\"$ADDR_TOPIC\"]}]
+    }" http://127.0.0.1:8545/ | jq '.result | length'
+    ```
 
-### 4. Iniciar Besu con el plugin
-
-```bash
-besu \
-  --data-path=/data \
-  --p2p-port=30303 \
-  --rpc-http-enabled \
-  --rpc-http-port=8545 \
-  --rpc-http-api=ETH,NET,WEB3,PERM \
-  --plugin-dir=/opt/besu/plugins
-```
-
-## Configuración en besu.toml
-
-```toml
-[Node]
-data-path = "/data"
-p2p-port = 30303
-plugin-dir = "/opt/besu/plugins"
-
-[RPC]
-http-enabled = true
-http-port = 8545
-http-api = ["ETH", "NET", "WEB3", "PERM"]
-```
-
-## Uso
-
-### Ejemplo 1: Agregar cuentas al allowlist
-
-```bash
-curl -X POST \
-  --data '{"jsonrpc":"2.0","method":"perm_addAccountsToAllowlist","params":[["0xb9b81ee349c3807e46bc71aa2632203c5b462032", "0xb9b81ee349c3807e46bc71aa2632203c5b462034"]],"id":1}' \
-  http://127.0.0.1:8545/ \
-  -H "Content-Type: application/json"
-```
-
-**Salida esperada en consola:**
+## Estructura del proyecto
 
 ```
-════════════════════════════════════════════════════════════════════════════════════════════════════════════════
-┌─ [PERMISSION EVENT INTERCEPTED] 2024-01-15 14:23:45.123
-├─ TYPE: ADD_ACCOUNTS
-├─ ENODE (Current Node): enode://a1b2c3d4e5f6...@127.0.0.1:30303
-├─ ITEMS ADDED: 2
-├─  [1] 0xb9b81ee349c3807e46bc71aa2632203c5b462032
-└─  [2] 0xb9b81ee349c3807e46bc71aa2632203c5b462034
-└─ TIMESTAMP: 2024-01-15 14:23:45.123
-════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+besu-permission-rpc-plugin/
+├── build.gradle                # toolchain Java 21, fatJar, deps
+├── settings.gradle
+├── plugin.properties.example   # plantilla de config
+├── besu.toml.example           # ejemplo de arranque de Besu
+├── install.sh                  # helper de instalación
+├── QUICK_START.md
+├── CLAUDE.md                   # notas para asistentes de código
+└── src/main/
+    ├── java/com/example/besu/plugin/
+    │   ├── PermissionInterceptorPlugin.java   # entry point (register/start/stop)
+    │   ├── PermissionEventCapture.java        # store + log del plugin
+    │   ├── PermissionEvent.java               # modelo (EventType enum)
+    │   ├── PermissionEventListener.java
+    │   ├── NodeInfoProvider.java              # cache del enode local
+    │   ├── PermissionRpcInterceptor.java      # wrapper legacy (no usado en runtime)
+    │   ├── blockchain/
+    │   │   ├── BlockchainReporter.java        # cola de tx + worker
+    │   │   ├── ContractTxSender.java          # firma + eth_sendRawTransaction
+    │   │   └── NodeKeyLoader.java             # carga la key del nodo (hex 32 bytes)
+    │   ├── config/PluginConfig.java
+    │   ├── export/EventExporter.java          # util JSON/XML/TSV/HTML (no wired)
+    │   └── example/PluginUsageExample.java    # demo, no se empaqueta con Besu
+    └── resources/META-INF/services/
+        └── org.hyperledger.besu.plugin.BesuPlugin
 ```
 
-### Ejemplo 2: Ver los logs
-
-```bash
-tail -f /var/log/besu/permission-events.log
-```
-
-**Formato del log:**
-
-```
-[2024-01-15 14:23:45.123] TYPE=ADD_ACCOUNTS | ENODE=enode://a1b2c3d4e5f6...@127.0.0.1:30303 | ITEMS=0xb9b81ee349c3807e46bc71aa2632203c5b462032,0xb9b81ee349c3807e46bc71aa2632203c5b462034
-[2024-01-15 14:24:10.456] TYPE=ADD_NODES | ENODE=enode://a1b2c3d4e5f6...@127.0.0.1:30303 | ITEMS=enode://node1@192.168.1.100:30303,enode://node2@192.168.1.101:30303
-```
-
-## API del Plugin
-
-### PermissionEventCapture
+## Tipos de evento
 
 ```java
-// Obtener todos los eventos capturados
-List<PermissionEvent> events = eventCapture.getEvents();
-
-// Filtrar por tipo
-List<PermissionEvent> accountEvents = eventCapture.getEventsByType(
-    PermissionEvent.EventType.ADD_ACCOUNTS
-);
-
-// Obtener conteo total
-int total = eventCapture.getTotalEventsCount();
-
-// Limpiar eventos
-eventCapture.clearEvents();
-
-// Agregar listeners
-eventCapture.addListener(event -> {
-    System.out.println("Evento: " + event);
-});
+PermissionEvent.EventType.ADD_ACCOUNTS      // perm_addAccountsToAllowlist
+PermissionEvent.EventType.REMOVE_ACCOUNTS   // perm_removeAccountsFromAllowlist
+PermissionEvent.EventType.ADD_NODES         // perm_addNodesToAllowlist
+PermissionEvent.EventType.REMOVE_NODES      // perm_removeNodesFromAllowlist
 ```
 
-### PermissionEvent
+El reporter mapea cada uno a la función correspondiente del contrato:
 
-```java
-// Obtener información del evento
-String enode = event.getEnode();
-List<String> items = event.getAddresses();
-LocalDateTime timestamp = event.getTimestamp();
-PermissionEvent.EventType type = event.getEventType();
+| EventType | Llamada on-chain |
+|---|---|
+| `ADD_ACCOUNTS` | `reportAccountAdded(address)` |
+| `REMOVE_ACCOUNTS` | `reportAccountRemoved(address)` |
+| `ADD_NODES` | `reportEnodeAdded(string)` |
+| `REMOVE_NODES` | `reportEnodeRemoved(string)` |
 
-// Tipos disponibles
-// - ADD_ACCOUNTS (perm_addAccountsToAllowlist)
-// - ADD_NODES (perm_addNodesToAllowlist)
-// - REMOVE_ACCOUNTS (perm_removeAccountsFromAllowlist)
-// - REMOVE_NODES (perm_removeNodesFromAllowlist)
-```
+Un evento con `n` items se convierte en `n` transacciones (una por address/enode). Las tx se procesan secuencialmente en un hilo dedicado (`blockchain-reporter`) consumiendo de una `BlockingQueue`.
 
 ## Troubleshooting
 
-### El plugin no se carga
+### `[BLOCKCHAIN ERROR] ... -32007 "Sender account not authorized"`
 
-1. Verifica que el archivo JAR esté en `/opt/besu/plugins/`
-2. Revisa los logs de Besu: `tail -f /opt/besu/logs/besu.log`
-3. Asegúrate de usar una versión compatible de Besu (23.10.3+)
-
-### No se crean logs
+La cuenta del plugin (la derivada de `blockchain.node.key.path`) no está en el `accounts-allowlist`. Busca su address así:
 
 ```bash
-# Verifica que el directorio existe y tiene permisos
+grep "Reporter started" permission-events.log
+# [BLOCKCHAIN] Reporter started. Sender address: 0x<SENDER>
+```
+
+Añádela al allowlist con `perm_addAccountsToAllowlist` y reenvía la alta fallida.
+
+> `BlockchainReporter` **no reintenta** tx fallidas automáticamente. Un evento que fracasó solo se vuelve a reportar si se genera de nuevo (p. ej. repitiendo el `perm_add*`).
+
+### `rpc.port no configurado`
+
+El plugin no pudo resolver el puerto RPC ni desde `plugin.properties` ni desde la `BesuConfiguration` del contexto. Añade `rpc.port=8545` (o el que uses) al fichero de config.
+
+### El enode sale como `unknown`
+
+El resolver llama a `net_enode` en bucle con 3 s de espera, hasta 15 intentos. Si tras ~45 s no lo ha resuelto, revisa que `net` esté en `--rpc-http-api` y que el puerto coincida con `rpc.port`.
+
+### No se escriben logs
+
+```bash
 ls -la /var/log/besu/
 chmod 755 /var/log/besu
-
-# Reinicia Besu
 ```
 
-### El enode dice "unknown"
-
-Esto es normal si el nodo no ha finalizado el bootstrap de P2P. El enode se actualizará cuando el nodo esté completamente inicializado.
-
-## Desarrollo
-
-### Agregar un nuevo tipo de evento
-
-1. Agrega un nuevo tipo en `PermissionEvent.EventType`
-2. Crea un nuevo método en `PermissionEventCapture.java`
-3. Actualiza el interceptor en `PermissionRpcInterceptor.java`
-
-### Compilar con debug
-
-```bash
-./gradlew build --debug
-```
-
-### Ejecutar pruebas unitarias
-
-```bash
-./gradlew test
-```
-
-## Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Fork el repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+Si corres Besu como usuario no privilegiado, apunta `log.file` a una ruta escribible por ese usuario.
 
 ## Licencia
 
-MIT License - Ver LICENSE para detalles
-
-## Soporte
-
-Para reportar bugs o solicitar features, abre un issue en GitHub.
-
-## Versión
-
-**v2.0.0** - Enero 2025
-
-- ✅ Actualizado para Besu 25.8.0
-- ✅ Soporte para Java 17
-- ✅ Dependencias actualizadas (Jackson 2.17.0, Log4j 2.23.1, HttpClient 5.3.1)
-- ✅ Mejor rendimiento y seguridad
-- ✅ 100% compatible con v1.1.0
-
----
-
-**Desarrollado para Hyperledger Besu 23.10.3+**
+MIT.
